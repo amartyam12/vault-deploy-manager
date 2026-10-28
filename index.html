@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credentials & Deployment Manager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151f32',
+                            950: '#0b0f19',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Inter Font & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    </style>
+</head>
+<body class="h-full flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+
+    <!-- Top Navigation / Header Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between shrink-0 shadow-lg z-20">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                <i class="fa-solid fa-terminal text-sm"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm tracking-tight text-white leading-none">Vault & Deploy</h1>
+                <span class="text-[11px] text-slate-400 font-medium">Credentials & Runbook Manager</span>
+            </div>
+        </div>
+
+        <!-- View Switcher Tabs -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button onclick="switchView('credentials')" id="nav-btn-credentials" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-2">
+                <i class="fa-solid fa-key"></i> Credentials
+            </button>
+            <button onclick="switchView('deployments')" id="nav-btn-deployments" class="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2">
+                <i class="fa-solid fa-rocket"></i> Deployments
+            </button>
+        </div>
+
+        <!-- Backup / Storage Controls -->
+        <div class="flex items-center gap-2">
+            <button onclick="exportBackup()" title="Export JSON Backup" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+                <i class="fa-solid fa-download"></i>
+            </button>
+            <label title="Import JSON Backup" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition cursor-pointer">
+                <i class="fa-solid fa-upload"></i>
+                <input type="file" id="import-file" accept=".json" onchange="importBackup(event)" class="hidden">
+            </label>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full">
+
+        <!-- ==================== VIEW 1: CREDENTIALS ==================== -->
+        <section id="view-credentials" class="space-y-6">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm">
+                <div>
+                    <h2 class="font-bold text-base text-white">Credentials Vault</h2>
+                    <p class="text-xs text-slate-400">Manage secrets categorized by custom headers and environments.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleAllMasks()" id="mask-toggle-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-300 transition">
+                        <i class="fa-solid fa-eye-slash" id="mask-icon"></i> <span id="mask-text">Reveal Secrets</span>
+                    </button>
+                    <button onclick="openCategoryModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition">
+                        <i class="fa-solid fa-folder-plus"></i> Add Category Header
+                    </button>
+                </div>
+            </div>
+
+            <!-- Categories & Credential Items List -->
+            <div id="credentials-container" class="space-y-6">
+                <!-- Dynamically populated -->
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 2: DEPLOYMENTS ==================== -->
+        <section id="view-deployments" class="space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm">
+                <div>
+                    <h2 class="font-bold text-base text-white">Deployment Runbook & Pipelines</h2>
+                    <p class="text-xs text-slate-400">Interactive step tiles, phases, checklists, and execution status.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="runAllDeployments()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition">
+                        <i class="fa-solid fa-play"></i> Complete All Steps
+                    </button>
+                    <button onclick="openTileModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition">
+                        <i class="fa-solid fa-plus"></i> Add Deployment Tile
+                    </button>
+                </div>
+            </div>
+
+            <!-- Deployment Tiles Grid -->
+            <div id="deployments-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamically populated -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- Modal: Category Header -->
+    <div id="category-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-sm text-white">Add Credential Category</h3>
+                <button onclick="closeCategoryModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="saveCategory(event)" class="p-5 space-y-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Category / Header Name</label>
+                    <input type="text" id="cat-name" required placeholder="e.g. AWS Production, Stripe API Keys..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeCategoryModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Credential Item -->
+    <div id="credential-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="cred-modal-title" class="font-bold text-sm text-white">Add Credential Item</h3>
+                <button onclick="closeCredentialModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="credential-form" onsubmit="saveCredentialItem(event)" class="p-5 space-y-4">
+                <input type="hidden" id="cred-edit-id">
+                <input type="hidden" id="cred-cat-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-400 block mb-1">Title / Key Label</label>
+                        <input type="text" id="cred-title" required placeholder="e.g. AWS_ACCESS_KEY_ID" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-400 block mb-1">Username / Identifier</label>
+                        <input type="text" id="cred-username" placeholder="Optional username..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Password / Secret</label>
+                    <input type="password" id="cred-secret" required placeholder="Enter password or token..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Notes / Environment</label>
+                    <textarea id="cred-notes" rows="2" placeholder="e.g. Used for CI/CD runners in US-East..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeCredentialModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Credential</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Deployment Tile -->
+    <div id="tile-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="tile-modal-title" class="font-bold text-sm text-white">Add Deployment Step Tile</h3>
+                <button onclick="closeTileModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="tile-form" onsubmit="saveDeploymentTile(event)" class="p-5 space-y-4">
+                <input type="hidden" id="tile-edit-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-400 block mb-1">Step / Pipeline Title</label>
+                        <input type="text" id="tile-title" required placeholder="e.g. Build & Push Docker Image" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-400 block mb-1">Phase / Environment</label>
+                        <select id="tile-env" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="Production">Production</option>
+                            <option value="Staging">Staging</option>
+                            <option value="Development">Development</option>
+                            <option value="CI/CD Pipeline">CI/CD Pipeline</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-400 block mb-1">Status Badge</label>
+                        <select id="tile-status" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Failed">Failed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-400 block mb-1">Sequence Order</label>
+                        <input type="number" id="tile-order" value="1" min="1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Description / Commands</label>
+                    <textarea id="tile-desc" rows="2" placeholder="docker build -t app:latest . && docker push..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Checklist Tasks (One per line)</label>
+                    <textarea id="tile-checklist" rows="3" placeholder="Run unit tests&#10;Build container&#10;Apply migrations" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeTileModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Step Tile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toast-msg" class="text-xs font-medium">Action successful</span>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // --- Application State ---
+        let state = {
+            activeView: 'credentials',
+            revealedSecrets: false,
+            credentialCategories: [
+                {
+                    id: 'cat-1',
+                    name: 'AWS Production Infrastructure',
+                    items: [
+                        { id: 'c1', title: 'AWS_ACCESS_KEY_ID', username: 'deploy-agent', secret: 'AKIAIOSFODNN7EXAMPLE', notes: 'Primary S3 & ECS Deployment' },
+                        { id: 'c2', title: 'AWS_SECRET_ACCESS_KEY', username: '-', secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', notes: 'Keep confidential' }
+                    ]
+                },
+                {
+                    id: 'cat-2',
+                    name: 'Database & Redis Secrets',
+                    items: [
+                        { id: 'c3', title: 'DATABASE_URL', username: 'postgres_admin', secret: 'postgresql://admin:supersecurepass@rds.amazonaws.com:5432/prod', notes: 'Aurora Multi-AZ' }
+                    ]
+                }
+            ],
+            deploymentTiles: [
+                {
+                    id: 't1',
+                    title: 'Frontend Production Build & Sync',
+                    env: 'Production',
+                    status: 'Completed',
+                    order: 1,
+                    desc: 'Compile static assets with Vite and sync to AWS S3 / CloudFront.',
+                    checklist: [
+                        { text: 'Run npm test & build', completed: true },
+                        { text: 'AWS S3 bucket sync', completed: true },
+                        { text: 'CloudFront cache invalidation', completed: true }
+                    ]
+                },
+                {
+                    id: 't2',
+                    title: 'Backend API ECS Deployment',
+                    env: 'Production',
+                    status: 'In Progress',
+                    order: 2,
+                    desc: 'Run database migrations and rolling deployment on ECS Fargate cluster.',
+                    checklist: [
+                        { text: 'Take RDS Snapshot', completed: true },
+                        { text: 'Run Prisma Migrate', completed: false },
+                        { text: 'Update ECS Task Definition', completed: false }
+                    ]
+                }
+            ]
+        };
+
+        // --- Initialization & LocalStorage ---
+        window.onload = function() {
+            loadFromLocalStorage();
+            renderCredentialsView();
+            renderDeploymentsView();
+        };
+
+        function saveToLocalStorage() {
+            localStorage.setItem('credential_deploy_manager_data', JSON.stringify(state));
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('credential_deploy_manager_data');
+            if (saved) {
+                try {
+                    state = JSON.parse(saved);
+                } catch(e) {
+                    console.error('Error loading saved state:', e);
+                }
+            }
+        }
+
+        // --- View Navigation ---
+        function switchView(viewName) {
+            state.activeView = viewName;
+            const credSec = document.getElementById('view-credentials');
+            const depSec = document.getElementById('view-deployments');
+            const credBtn = document.getElementById('nav-btn-credentials');
+            const depBtn = document.getElementById('nav-btn-deployments');
+
+            if (viewName === 'credentials') {
+                credSec.classList.remove('hidden');
+                depSec.classList.add('hidden');
+                credBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-2';
+                depBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2';
+                renderCredentialsView();
+            } else {
+                credSec.classList.add('hidden');
+                depSec.classList.remove('hidden');
+                credBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2';
+                depBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-2';
+                renderDeploymentsView();
+            }
+        }
+
+        // --- Backup & Restore ---
+        function exportBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `vault-deploy-backup-${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+            showToast('Backup JSON exported successfully');
+        }
+
+        function importBackup(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const parsed = JSON.parse(event.target.result);
+                    if (parsed && parsed.credentialCategories && parsed.deploymentTiles) {
+                        state = parsed;
+                        saveToLocalStorage();
+                        switchView(state.activeView || 'credentials');
+                        showToast('Backup imported successfully');
+                    } else {
+                        showToast('Invalid backup file structure');
+                    }
+                } catch(err) {
+                    showToast('Failed to parse JSON file');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        // --- Credentials Logic ---
+        function toggleAllMasks() {
+            state.revealedSecrets = !state.revealedSecrets;
+            const icon = document.getElementById('mask-icon');
+            const text = document.getElementById('mask-text');
+            if (state.revealedSecrets) {
+                icon.className = 'fa-solid fa-eye';
+                text.textContent = 'Mask Secrets';
+            } else {
+                icon.className = 'fa-solid fa-eye-slash';
+                text.textContent = 'Reveal Secrets';
+            }
+            renderCredentialsView();
+        }
+
+        function renderCredentialsView() {
+            const container = document.getElementById('credentials-container');
+            if (state.credentialCategories.length === 0) {
+                container.innerHTML = `<div class="bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center text-slate-400 text-xs">No categories added yet. Click "Add Category Header" above.</div>`;
+                return;
+            }
+
+            container.innerHTML = state.credentialCategories.map(cat => {
+                const itemsHtml = cat.items.length === 0 ? 
+                    `<div class="p-6 text-center text-xs text-slate-500">No credentials in this category. Click "Add Item" to add secrets.</div>` :
+                    cat.items.map(item => {
+                        const valDisplay = state.revealedSecrets ? item.secret : '••••••••••••••••••••';
+                        return `
+                            <tr class="hover:bg-slate-850/50 transition">
+                                <td class="p-4 font-mono font-semibold text-xs text-white">${item.title}</td>
+                                <td class="p-4 text-xs text-slate-300">${item.username || '-'}</td>
+                                <td class="p-4 font-mono text-xs">
+                                    <span class="bg-slate-950 px-2.5 py-1 rounded select-all text-slate-300 border border-slate-800">${valDisplay}</span>
+                                </td>
+                                <td class="p-4 text-xs text-slate-400">${item.notes || '-'}</td>
+                                <td class="p-4 text-right space-x-1">
+                                    <button onclick="copyToClipboard('${item.secret}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300" title="Copy Secret"><i class="fa-solid fa-copy"></i></button>
+                                    <button onclick="openCredentialModal('${cat.id}', '${item.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                                    <button onclick="deleteCredentialItem('${cat.id}', '${item.id}')" class="p-1.5 bg-red-950/60 text-red-400 hover:bg-red-900/60 rounded-lg text-xs" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                return `
+                    <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
+                        <div class="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fa-solid fa-folder-open text-indigo-400"></i>
+                                <h3 class="font-bold text-xs text-white uppercase tracking-wider">${cat.name}</h3>
+                                <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">${cat.items.length} items</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="openCredentialModal('${cat.id}')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                                    <i class="fa-solid fa-plus text-[10px]"></i> Add Item
+                                </button>
+                                <button onclick="deleteCategory('${cat.id}')" class="p-1.5 text-slate-400 hover:text-red-400 rounded-lg text-xs" title="Delete Category"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-950/30">
+                                        <th class="p-4">Title / Key</th>
+                                        <th class="p-4">Username / ID</th>
+                                        <th class="p-4">Secret Value</th>
+                                        <th class="p-4">Notes / Env</th>
+                                        <th class="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800 text-sm">
+                                    ${itemsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Category Modal
+        function openCategoryModal() { document.getElementById('category-modal').classList.remove('hidden'); }
+        function closeCategoryModal() { document.getElementById('category-modal').classList.add('hidden'); document.getElementById('cat-name').value = ''; }
+        function saveCategory(e) {
+            e.preventDefault();
+            const name = document.getElementById('cat-name').value.trim();
+            if (name) {
+                state.credentialCategories.push({ id: 'cat-' + Date.now(), name, items: [] });
+                closeCategoryModal();
+                saveToLocalStorage();
+                renderCredentialsView();
+                showToast('Category header added');
+            }
+        }
+        function deleteCategory(catId) {
+            state.credentialCategories = state.credentialCategories.filter(c => c.id !== catId);
+            saveToLocalStorage();
+            renderCredentialsView();
+            showToast('Category removed');
+        }
+
+        // Credential Item Modal
+        function openCredentialModal(catId, itemId = null) {
+            document.getElementById('credential-modal').classList.remove('hidden');
+            document.getElementById('cred-cat-id').value = catId;
+            if (itemId) {
+                const cat = state.credentialCategories.find(c => c.id === catId);
+                const item = cat?.items.find(i => i.id === itemId);
+                if (item) {
+                    document.getElementById('cred-modal-title').textContent = 'Edit Credential Item';
+                    document.getElementById('cred-edit-id').value = item.id;
+                    document.getElementById('cred-title').value = item.title;
+                    document.getElementById('cred-username').value = item.username || '';
+                    document.getElementById('cred-secret').value = item.secret;
+                    document.getElementById('cred-notes').value = item.notes || '';
+                }
+            } else {
+                document.getElementById('cred-modal-title').textContent = 'Add Credential Item';
+                document.getElementById('credential-form').reset();
+                document.getElementById('cred-edit-id').value = '';
+                document.getElementById('cred-cat-id').value = catId;
+            }
+        }
+        function closeCredentialModal() { document.getElementById('credential-modal').classList.add('hidden'); }
+        function saveCredentialItem(e) {
+            e.preventDefault();
+            const catId = document.getElementById('cred-cat-id').value;
+            const itemId = document.getElementById('cred-edit-id').value;
+            const title = document.getElementById('cred-title').value.trim();
+            const username = document.getElementById('cred-username').value.trim();
+            const secret = document.getElementById('cred-secret').value.trim();
+            const notes = document.getElementById('cred-notes').value.trim();
+
+            const cat = state.credentialCategories.find(c => c.id === catId);
+            if (cat) {
+                if (itemId) {
+                    cat.items = cat.items.map(i => i.id === itemId ? { ...i, title, username, secret, notes } : i);
+                    showToast('Credential updated');
+                } else {
+                    cat.items.push({ id: 'c-' + Date.now(), title, username, secret, notes });
+                    showToast('Credential added');
+                }
+                saveToLocalStorage();
+                renderCredentialsView();
+                closeCredentialModal();
+            }
+        }
+        function deleteCredentialItem(catId, itemId) {
+            const cat = state.credentialCategories.find(c => c.id === catId);
+            if (cat) {
+                cat.items = cat.items.filter(i => i.id !== itemId);
+                saveToLocalStorage();
+                renderCredentialsView();
+                showToast('Credential item removed');
+            }
+        }
+
+        // --- Deployments Logic ---
+        function renderDeploymentsView() {
+            const container = document.getElementById('deployments-container');
+            const tiles = [...state.deploymentTiles].sort((a, b) => (a.order || 1) - (b.order || 1));
+
+            if (tiles.length === 0) {
+                container.innerHTML = `<div class="col-span-full bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center text-slate-400 text-xs">No deployment step tiles created yet. Click "Add Deployment Tile".</div>`;
+                return;
+            }
+
+            const statusColors = {
+                'Completed': 'bg-emerald-950 text-emerald-400 border border-emerald-800/50',
+                'In Progress': 'bg-indigo-950 text-indigo-400 border border-indigo-800/50',
+                'Pending': 'bg-amber-950 text-amber-400 border border-amber-800/50',
+                'Failed': 'bg-red-950 text-red-400 border border-red-800/50'
+            };
+
+            const envColors = {
+                'Production': 'bg-red-950/60 text-red-400 border border-red-900/50',
+                'Staging': 'bg-amber-950/60 text-amber-400 border border-amber-900/50',
+                'Development': 'bg-blue-950/60 text-blue-400 border border-blue-900/50',
+                'CI/CD Pipeline': 'bg-purple-950/60 text-purple-400 border border-purple-900/50'
+            };
+
+            container.innerHTML = tiles.map(tile => {
+                const checklistHtml = (tile.checklist || []).map((chk, idx) => `
+                    <label class="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer py-1">
+                        <input type="checkbox" ${chk.completed ? 'checked' : ''} onchange="toggleChecklistItem('${tile.id}', ${idx}, this.checked)" class="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 rounded focus:ring-indigo-500 cursor-pointer">
+                        <span class="${chk.completed ? 'line-through text-slate-500' : ''}">${chk.text}</span>
+                    </label>
+                `).join('');
+
+                return `
+                    <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm p-5 flex flex-col justify-between transition-all hover:border-slate-700">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center">${tile.order || 1}</span>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[tile.status] || ''}">${tile.status}</span>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="openTileModal('${tile.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                                    <button onclick="deleteTile('${tile.id}')" class="p-1.5 bg-red-950/60 text-red-400 hover:bg-red-900/60 rounded-lg text-xs" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <h3 class="font-bold text-sm text-white">${tile.title}</h3>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${envColors[tile.env] || ''}">${tile.env}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mb-4 font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">${tile.desc || 'No commands provided.'}</p>
+                            
+                            ${tile.checklist && tile.checklist.length > 0 ? `
+                                <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800 space-y-1 mb-4">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Checklist</div>
+                                    ${checklistHtml}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                            <span class="text-[11px] text-slate-500 font-mono">ID: ${tile.id}</span>
+                            <button onclick="executeTile('${tile.id}')" class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-indigo-500/30">
+                                <i class="fa-solid fa-play text-[9px]"></i> Run Step
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Deployment Modal
+        function openTileModal(tileId = null) {
+            document.getElementById('tile-modal').classList.remove('hidden');
+            if (tileId) {
+                const tile = state.deploymentTiles.find(t => t.id === tileId);
+                if (tile) {
+                    document.getElementById('tile-modal-title').textContent = 'Edit Deployment Step Tile';
+                    document.getElementById('tile-edit-id').value = tile.id;
+                    document.getElementById('tile-title').value = tile.title;
+                    document.getElementById('tile-env').value = tile.env;
+                    document.getElementById('tile-status').value = tile.status;
+                    document.getElementById('tile-order').value = tile.order || 1;
+                    document.getElementById('tile-desc').value = tile.desc || '';
+                    document.getElementById('tile-checklist').value = (tile.checklist || []).map(c => c.text).join('\n');
+                }
+            } else {
+                document.getElementById('tile-modal-title').textContent = 'Add Deployment Step Tile';
+                document.getElementById('tile-form').reset();
+                document.getElementById('tile-edit-id').value = '';
+                document.getElementById('tile-order').value = state.deploymentTiles.length + 1;
+            }
+        }
+        function closeTileModal() { document.getElementById('tile-modal').classList.add('hidden'); }
+        function saveDeploymentTile(e) {
+            e.preventDefault();
+            const id = document.getElementById('tile-edit-id').value;
+            const title = document.getElementById('tile-title').value.trim();
+            const env = document.getElementById('tile-env').value;
+            const status = document.getElementById('tile-status').value;
+            const order = parseInt(document.getElementById('tile-order').value) || 1;
+            const desc = document.getElementById('tile-desc').value.trim();
+            const rawChecklist = document.getElementById('tile-checklist').value.trim();
+
+            const lines = rawChecklist ? rawChecklist.split('\n').map(l => l.trim()).filter(Boolean) : [];
+
+            if (id) {
+                const existing = state.deploymentTiles.find(t => t.id === id);
+                const checklist = lines.map(line => {
+                    const found = existing?.checklist?.find(c => c.text === line);
+                    return { text: line, completed: found ? found.completed : false };
+                });
+                state.deploymentTiles = state.deploymentTiles.map(t => t.id === id ? { ...t, title, env, status, order, desc, checklist } : t);
+                showToast('Deployment tile updated');
+            } else {
+                const checklist = lines.map(line => ({ text: line, completed: false }));
+                state.deploymentTiles.push({ id: 't-' + Date.now(), title, env, status, order, desc, checklist });
+                showToast('Deployment tile added');
+            }
+            closeTileModal();
+            saveToLocalStorage();
+            renderDeploymentsView();
+        }
+        function deleteTile(tileId) {
+            state.deploymentTiles = state.deploymentTiles.filter(t => t.id !== tileId);
+            saveToLocalStorage();
+            renderDeploymentsView();
+            showToast('Deployment tile removed');
+        }
+        function toggleChecklistItem(tileId, index, isChecked) {
+            const tile = state.deploymentTiles.find(t => t.id === tileId);
+            if (tile && tile.checklist && tile.checklist[index]) {
+                tile.checklist[index].completed = isChecked;
+                saveToLocalStorage();
+                renderDeploymentsView();
+            }
+        }
+        function executeTile(tileId) {
+            const tile = state.deploymentTiles.find(t => t.id === tileId);
+            if (tile) {
+                tile.status = 'Completed';
+                if (tile.checklist) tile.checklist.forEach(c => c.completed = true);
+                saveToLocalStorage();
+                renderDeploymentsView();
+                showToast(`Executed: ${tile.title}`);
+            }
+        }
+        function runAllDeployments() {
+            state.deploymentTiles.forEach(t => {
+                t.status = 'Completed';
+                if (t.checklist) t.checklist.forEach(c => c.completed = true);
+            });
+            saveToLocalStorage();
+            renderDeploymentsView();
+            showToast('All deployment steps completed');
+        }
+
+        // --- Helpers ---
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Copied secret to clipboard');
+            } catch (err) {
+                showToast('Failed to copy');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
