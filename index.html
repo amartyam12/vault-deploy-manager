@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Credentials & Deployment Manager</title>
+    <title>Vault, Deployment & Alias Manager</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -13,16 +13,17 @@
                 extend: {
                     colors: {
                         slate: {
-                            850: '#151f32',
-                            950: '#0b0f19',
+                            850: '#131c2e',
+                            925: '#0d1322',
+                            950: '#080c14',
                         }
                     }
                 }
             }
         }
     </script>
-    <!-- Inter Font & FontAwesome Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Inter & JetBrains Mono Fonts + FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -30,683 +31,1633 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
 <body class="h-full flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
 
-    <!-- Top Navigation / Header Bar -->
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between shrink-0 shadow-lg z-20">
+    <!-- ==================== TOP NAVIGATION BAR ==================== -->
+    <header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-lg z-30">
+        <!-- Brand & Auto-Save Badge -->
         <div class="flex items-center space-x-3">
-            <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-                <i class="fa-solid fa-terminal text-sm"></i>
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                <i class="fa-solid fa-layer-group text-sm"></i>
             </div>
             <div>
-                <h1 class="font-bold text-sm tracking-tight text-white leading-none">Vault & Deploy</h1>
-                <span class="text-[11px] text-slate-400 font-medium">Credentials & Runbook Manager</span>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-bold text-sm tracking-tight text-white leading-none">DevOps Hub</h1>
+                    <span id="save-indicator" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-950/90 text-emerald-400 border border-emerald-800/60">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Auto-saved locally
+                    </span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-medium">Credentials • Deployment Steps • Shell Aliases</span>
             </div>
         </div>
 
-        <!-- View Switcher Tabs -->
-        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-            <button onclick="switchView('credentials')" id="nav-btn-credentials" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-2">
-                <i class="fa-solid fa-key"></i> Credentials
+        <!-- Strictly 3 Navigation Tabs: Credentials | Deployment | Alias -->
+        <nav class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 order-3 md:order-2 w-full md:w-auto justify-center">
+            <button onclick="switchTab('credentials')" id="tab-btn-credentials" class="flex-1 md:flex-initial px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-key"></i>
+                <span>Credentials</span>
+                <span id="badge-credentials" class="px-1.5 py-0.2 text-[10px] rounded-md bg-white/10">0</span>
             </button>
-            <button onclick="switchView('deployments')" id="nav-btn-deployments" class="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2">
-                <i class="fa-solid fa-rocket"></i> Deployments
+            <button onclick="switchTab('deployment')" id="tab-btn-deployment" class="flex-1 md:flex-initial px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rocket"></i>
+                <span>Deployment</span>
+                <span id="badge-deployment" class="px-1.5 py-0.2 text-[10px] rounded-md bg-white/10">0</span>
             </button>
-        </div>
+            <button onclick="switchTab('alias')" id="tab-btn-alias" class="flex-1 md:flex-initial px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-terminal"></i>
+                <span>Alias</span>
+                <span id="badge-alias" class="px-1.5 py-0.2 text-[10px] rounded-md bg-white/10">0</span>
+            </button>
+        </nav>
 
-        <!-- Backup / Storage Controls -->
-        <div class="flex items-center gap-2">
-            <button onclick="exportBackup()" title="Export JSON Backup" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
-                <i class="fa-solid fa-download"></i>
+        <!-- Search & Backup Controls -->
+        <div class="flex items-center gap-2 order-2 md:order-3">
+            <!-- Instant Search Input -->
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                <input
+                    type="text"
+                    id="global-search"
+                    oninput="handleSearch(this.value)"
+                    placeholder="Filter active tab..."
+                    class="w-40 sm:w-52 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+                >
+                <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Export JSON -->
+            <button onclick="exportDataJSON()" title="Export JSON Backup" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-medium transition flex items-center gap-1.5 border border-slate-700/60">
+                <i class="fa-solid fa-download text-indigo-400"></i>
+                <span class="hidden xl:inline">Export</span>
             </button>
-            <label title="Import JSON Backup" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition cursor-pointer">
-                <i class="fa-solid fa-upload"></i>
-                <input type="file" id="import-file" accept=".json" onchange="importBackup(event)" class="hidden">
+
+            <!-- Import JSON -->
+            <label title="Import JSON Backup" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-medium transition flex items-center gap-1.5 border border-slate-700/60 cursor-pointer">
+                <i class="fa-solid fa-upload text-emerald-400"></i>
+                <span class="hidden xl:inline">Import</span>
+                <input type="file" id="import-json-input" accept=".json" onchange="importDataJSON(event)" class="hidden">
             </label>
+
+            <!-- Reset / Data Options -->
+            <button onclick="openResetModal()" title="Reset or Clear Data" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-400 rounded-xl text-xs transition border border-slate-700/60">
+                <i class="fa-solid fa-rotate-left"></i>
+            </button>
         </div>
     </header>
 
-    <!-- Main Content Area -->
-    <main class="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full">
+    <!-- ==================== MAIN WORKSPACE ==================== -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
 
-        <!-- ==================== VIEW 1: CREDENTIALS ==================== -->
+        <!-- ==================== TAB 1: CREDENTIALS ==================== -->
         <section id="view-credentials" class="space-y-6">
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm">
-                <div>
-                    <h2 class="font-bold text-base text-white">Credentials Vault</h2>
-                    <p class="text-xs text-slate-400">Manage secrets categorized by custom headers and environments.</p>
+            <!-- Section Banner -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-sm">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-base text-white">Credentials Manager</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Create custom Category Headers and add multiple Credential Tiles with key-value secrets and notes.</p>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button onclick="toggleAllMasks()" id="mask-toggle-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-300 transition">
-                        <i class="fa-solid fa-eye-slash" id="mask-icon"></i> <span id="mask-text">Reveal Secrets</span>
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <button onclick="toggleGlobalSecrets()" id="global-secret-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-300 transition">
+                        <i class="fa-solid fa-eye" id="global-secret-icon"></i>
+                        <span id="global-secret-text">Reveal All Secrets</span>
                     </button>
-                    <button onclick="openCategoryModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition">
-                        <i class="fa-solid fa-folder-plus"></i> Add Category Header
+                    <button onclick="openHeaderModal('credentials')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md shadow-indigo-600/20 transition">
+                        <i class="fa-solid fa-folder-plus"></i>
+                        <span>Add Credential Header</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Categories & Credential Items List -->
-            <div id="credentials-container" class="space-y-6">
-                <!-- Dynamically populated -->
-            </div>
+            <!-- Credential Headers & Tiles Container -->
+            <div id="credentials-list" class="space-y-6"></div>
         </section>
 
-        <!-- ==================== VIEW 2: DEPLOYMENTS ==================== -->
-        <section id="view-deployments" class="space-y-6 hidden">
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm">
-                <div>
-                    <h2 class="font-bold text-base text-white">Deployment Runbook & Pipelines</h2>
-                    <p class="text-xs text-slate-400">Interactive step tiles, phases, checklists, and execution status.</p>
+        <!-- ==================== TAB 2: DEPLOYMENT ==================== -->
+        <section id="view-deployment" class="space-y-6 hidden">
+            <!-- Section Banner -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-sm">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                        <i class="fa-solid fa-rocket"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-base text-white">Deployment Steps & Runbooks</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Group deployments by Project Header and add sequential Step Tiles with copyable commands and progress tracking.</p>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button onclick="runAllDeployments()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition">
-                        <i class="fa-solid fa-play"></i> Complete All Steps
-                    </button>
-                    <button onclick="openTileModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition">
-                        <i class="fa-solid fa-plus"></i> Add Deployment Tile
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <button onclick="openHeaderModal('deployment')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md shadow-emerald-600/20 transition">
+                        <i class="fa-solid fa-folder-plus"></i>
+                        <span>Add Deployment Header</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Deployment Tiles Grid -->
-            <div id="deployments-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Dynamically populated -->
+            <!-- Deployment Headers & Step Tiles Container -->
+            <div id="deployment-list" class="space-y-6"></div>
+        </section>
+
+        <!-- ==================== TAB 3: ALIAS ==================== -->
+        <section id="view-alias" class="space-y-6 hidden">
+            <!-- Section Banner -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-sm">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                        <i class="fa-solid fa-terminal"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-base text-white">Shell & Command Aliases</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Organize custom terminal shortcuts under Alias Headers. Copy single commands, shell alias definitions, or full <code class="font-mono text-amber-300">.bashrc</code> / <code class="font-mono text-amber-300">.zshrc</code> blocks.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <button onclick="copyAllAliasesGlobal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-300 transition">
+                        <i class="fa-solid fa-file-code text-amber-400"></i>
+                        <span>Copy Entire .bashrc</span>
+                    </button>
+                    <button onclick="openHeaderModal('alias')" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md shadow-amber-600/20 transition">
+                        <i class="fa-solid fa-folder-plus"></i>
+                        <span>Add Alias Header</span>
+                    </button>
+                </div>
             </div>
+
+            <!-- Alias Headers & Tiles Container -->
+            <div id="alias-list" class="space-y-6"></div>
         </section>
 
     </main>
 
     <!-- ==================== MODALS ==================== -->
 
-    <!-- Modal: Category Header -->
-    <div id="category-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <!-- 1. Universal Header Modal (Add/Edit Section Header for Credentials, Deployment, or Alias) -->
+    <div id="header-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-md overflow-hidden">
             <div class="p-5 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-bold text-sm text-white">Add Credential Category</h3>
-                <button onclick="closeCategoryModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                <h3 id="header-modal-title" class="font-bold text-sm text-white">Add Section Header</h3>
+                <button onclick="closeHeaderModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <form onsubmit="saveCategory(event)" class="p-5 space-y-4">
+            <form onsubmit="saveHeaderForm(event)" class="p-5 space-y-4">
+                <input type="hidden" id="header-modal-type">
+                <input type="hidden" id="header-modal-id">
                 <div>
-                    <label class="text-xs font-semibold text-slate-400 block mb-1">Category / Header Name</label>
-                    <input type="text" id="cat-name" required placeholder="e.g. AWS Production, Stripe API Keys..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <label class="text-xs font-semibold text-slate-300 block mb-1.5">Header Title *</label>
+                    <input type="text" id="header-title-input" required placeholder="e.g. AWS Production, Nginx Release, SSH Shortcuts..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
                 </div>
-                <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                    <button type="button" onclick="closeCategoryModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
-                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Category</button>
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1.5">Subtitle / Description (Optional)</label>
+                    <input type="text" id="header-desc-input" placeholder="e.g. Primary us-east-1 cluster credentials and endpoints" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeHeaderModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Header</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Credential Item -->
-    <div id="credential-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden">
-            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
-                <h3 id="cred-modal-title" class="font-bold text-sm text-white">Add Credential Item</h3>
-                <button onclick="closeCredentialModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    <!-- 2. Credential Tile Modal -->
+    <div id="cred-tile-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <h3 id="cred-tile-modal-title" class="font-bold text-sm text-white">Add Credential Tile</h3>
+                <button onclick="closeCredTileModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <form id="credential-form" onsubmit="saveCredentialItem(event)" class="p-5 space-y-4">
-                <input type="hidden" id="cred-edit-id">
-                <input type="hidden" id="cred-cat-id">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-semibold text-slate-400 block mb-1">Title / Key Label</label>
-                        <input type="text" id="cred-title" required placeholder="e.g. AWS_ACCESS_KEY_ID" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <form onsubmit="saveCredTileForm(event)" class="p-5 space-y-4 overflow-y-auto flex-1">
+                <input type="hidden" id="cred-header-id">
+                <input type="hidden" id="cred-tile-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Tile Header / Service Name *</label>
+                        <input type="text" id="cred-tile-title" required placeholder="e.g. RDS PostgreSQL Master, Stripe Live API" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
                     </div>
                     <div>
-                        <label class="text-xs font-semibold text-slate-400 block mb-1">Username / Identifier</label>
-                        <input type="text" id="cred-username" placeholder="Optional username..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Environment / Badge</label>
+                        <input type="text" id="cred-tile-badge" placeholder="e.g. PROD, STAGING" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
                     </div>
                 </div>
+
+                <!-- Dynamic Key-Value Fields -->
                 <div>
-                    <label class="text-xs font-semibold text-slate-400 block mb-1">Password / Secret</label>
-                    <input type="password" id="cred-secret" required placeholder="Enter password or token..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-semibold text-slate-300">Credential Key-Value Fields</label>
+                        <button type="button" onclick="addCredFieldRow()" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                            <i class="fa-solid fa-plus text-[10px]"></i> Add Field
+                        </button>
+                    </div>
+                    <div id="cred-fields-container" class="space-y-2"></div>
                 </div>
+
                 <div>
-                    <label class="text-xs font-semibold text-slate-400 block mb-1">Notes / Environment</label>
-                    <textarea id="cred-notes" rows="2" placeholder="e.g. Used for CI/CD runners in US-East..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Additional Details / Notes</label>
+                    <textarea id="cred-tile-notes" rows="3" placeholder="Connection string, SSH port rules, rotation notes, or multiline config..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"></textarea>
                 </div>
-                <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                    <button type="button" onclick="closeCredentialModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
-                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Credential</button>
+
+                <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeCredTileModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Credential Tile</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Deployment Tile -->
-    <div id="tile-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <!-- 3. Deployment Step Tile Modal -->
+    <div id="deploy-tile-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden">
             <div class="p-5 border-b border-slate-800 flex items-center justify-between">
-                <h3 id="tile-modal-title" class="font-bold text-sm text-white">Add Deployment Step Tile</h3>
-                <button onclick="closeTileModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                <h3 id="deploy-tile-modal-title" class="font-bold text-sm text-white">Add Deployment Step Tile</h3>
+                <button onclick="closeDeployTileModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <form id="tile-form" onsubmit="saveDeploymentTile(event)" class="p-5 space-y-4">
-                <input type="hidden" id="tile-edit-id">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-semibold text-slate-400 block mb-1">Step / Pipeline Title</label>
-                        <input type="text" id="tile-title" required placeholder="e.g. Build & Push Docker Image" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <form onsubmit="saveDeployTileForm(event)" class="p-5 space-y-4">
+                <input type="hidden" id="deploy-header-id">
+                <input type="hidden" id="deploy-tile-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div class="sm:col-span-3">
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Step Title / Header *</label>
+                        <input type="text" id="deploy-tile-title" required placeholder="e.g. Pull Latest Code & Install Dependencies" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
                     </div>
                     <div>
-                        <label class="text-xs font-semibold text-slate-400 block mb-1">Phase / Environment</label>
-                        <select id="tile-env" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="Production">Production</option>
-                            <option value="Staging">Staging</option>
-                            <option value="Development">Development</option>
-                            <option value="CI/CD Pipeline">CI/CD Pipeline</option>
-                        </select>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Tag / Env</label>
+                        <input type="text" id="deploy-tile-tag" placeholder="SSH / Local" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
                     </div>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-semibold text-slate-400 block mb-1">Status Badge</label>
-                        <select id="tile-status" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="Pending">Pending</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Failed">Failed</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-400 block mb-1">Sequence Order</label>
-                        <input type="number" id="tile-order" value="1" min="1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                </div>
+
                 <div>
-                    <label class="text-xs font-semibold text-slate-400 block mb-1">Description / Commands</label>
-                    <textarea id="tile-desc" rows="2" placeholder="docker build -t app:latest . && docker push..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Step Details / Explanation</label>
+                    <textarea id="deploy-tile-details" rows="2" placeholder="Describe what this step does or any pre-check required..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"></textarea>
                 </div>
+
                 <div>
-                    <label class="text-xs font-semibold text-slate-400 block mb-1">Checklist Tasks (One per line)</label>
-                    <textarea id="tile-checklist" rows="3" placeholder="Run unit tests&#10;Build container&#10;Apply migrations" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Command / Script Block</label>
+                    <textarea id="deploy-tile-command" rows="4" placeholder="git pull origin main && npm ci && pm2 reload all" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-emerald-500"></textarea>
                 </div>
-                <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                    <button type="button" onclick="closeTileModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
-                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Step Tile</button>
+
+                <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeDeployTileModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition">Save Deployment Tile</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 4. Alias Tile Modal -->
+    <div id="alias-tile-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="alias-tile-modal-title" class="font-bold text-sm text-white">Add Alias Tile</h3>
+                <button onclick="closeAliasTileModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="saveAliasTileForm(event)" class="p-5 space-y-4">
+                <input type="hidden" id="alias-header-id">
+                <input type="hidden" id="alias-tile-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Alias Shortcut Name *</label>
+                        <input type="text" id="alias-tile-name" required placeholder="e.g. nginx-reload, pm2logs, prod-ssh" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm font-mono text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Shell / Category Tag</label>
+                        <input type="text" id="alias-tile-tag" placeholder="e.g. bash / zsh / systemd" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Target Command *</label>
+                    <textarea id="alias-tile-command" rows="3" required placeholder="e.g. sudo nginx -t && sudo systemctl reload nginx" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Details / Description</label>
+                    <textarea id="alias-tile-details" rows="2" placeholder="Explain what this alias executes and when to use it..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeAliasTileModal()" class="px-4 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white transition">Save Alias Tile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. Data Reset / Clear Confirmation Modal (No browser alert/confirm) -->
+    <div id="reset-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-md overflow-hidden p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-database text-amber-400"></i> Manage Local Storage Data
+                </h3>
+                <button onclick="closeResetModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                All your Credentials, Deployment Steps, and Aliases are automatically stored in your browser's <code class="font-mono text-slate-200">localStorage</code> so they persist across restarts. Choose an action below if you want to restore the sample data or start with a blank workspace:
+            </p>
+            <div class="space-y-2.5 pt-1">
+                <button onclick="restoreStarterData()" class="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 flex items-center justify-between transition">
+                    <span><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Restore Default Demo Data</span>
+                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+                <button onclick="clearAllWorkspaceData()" class="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-800/50 flex items-center justify-between transition">
+                    <span><i class="fa-solid fa-trash-can mr-2"></i>Clear All Data (Start Empty)</span>
+                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeResetModal()" class="px-4 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300">Close</button>
+            </div>
         </div>
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none">
         <i class="fa-solid fa-circle-check text-emerald-400"></i>
-        <span id="toast-msg" class="text-xs font-medium">Action successful</span>
+        <span id="toast-msg" class="text-xs font-medium">Copied to clipboard</span>
     </div>
 
-    <!-- Application Script -->
+    <!-- ==================== APPLICATION LOGIC ==================== -->
     <script>
-        // --- Application State ---
-        let state = {
-            activeView: 'credentials',
-            revealedSecrets: false,
-            credentialCategories: [
-                {
-                    id: 'cat-1',
-                    name: 'AWS Production Infrastructure',
-                    items: [
-                        { id: 'c1', title: 'AWS_ACCESS_KEY_ID', username: 'deploy-agent', secret: 'AKIAIOSFODNN7EXAMPLE', notes: 'Primary S3 & ECS Deployment' },
-                        { id: 'c2', title: 'AWS_SECRET_ACCESS_KEY', username: '-', secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', notes: 'Keep confidential' }
-                    ]
-                },
-                {
-                    id: 'cat-2',
-                    name: 'Database & Redis Secrets',
-                    items: [
-                        { id: 'c3', title: 'DATABASE_URL', username: 'postgres_admin', secret: 'postgresql://admin:supersecurepass@rds.amazonaws.com:5432/prod', notes: 'Aurora Multi-AZ' }
-                    ]
-                }
-            ],
-            deploymentTiles: [
-                {
-                    id: 't1',
-                    title: 'Frontend Production Build & Sync',
-                    env: 'Production',
-                    status: 'Completed',
-                    order: 1,
-                    desc: 'Compile static assets with Vite and sync to AWS S3 / CloudFront.',
-                    checklist: [
-                        { text: 'Run npm test & build', completed: true },
-                        { text: 'AWS S3 bucket sync', completed: true },
-                        { text: 'CloudFront cache invalidation', completed: true }
-                    ]
-                },
-                {
-                    id: 't2',
-                    title: 'Backend API ECS Deployment',
-                    env: 'Production',
-                    status: 'In Progress',
-                    order: 2,
-                    desc: 'Run database migrations and rolling deployment on ECS Fargate cluster.',
-                    checklist: [
-                        { text: 'Take RDS Snapshot', completed: true },
-                        { text: 'Run Prisma Migrate', completed: false },
-                        { text: 'Update ECS Task Definition', completed: false }
-                    ]
-                }
-            ]
-        };
+        const STORAGE_KEY = 'devops_hub_v2_persistent_state';
+        let searchQuery = '';
+        let globalShowSecrets = false;
+        // Track individual secret visibility toggles by field unique key
+        let revealedFieldMap = {};
 
-        // --- Initialization & LocalStorage ---
-        window.onload = function() {
-            loadFromLocalStorage();
-            renderCredentialsView();
-            renderDeploymentsView();
-        };
-
-        function saveToLocalStorage() {
-            localStorage.setItem('credential_deploy_manager_data', JSON.stringify(state));
-        }
-
-        function loadFromLocalStorage() {
-            const saved = localStorage.getItem('credential_deploy_manager_data');
-            if (saved) {
-                try {
-                    state = JSON.parse(saved);
-                } catch(e) {
-                    console.error('Error loading saved state:', e);
-                }
-            }
-        }
-
-        // --- View Navigation ---
-        function switchView(viewName) {
-            state.activeView = viewName;
-            const credSec = document.getElementById('view-credentials');
-            const depSec = document.getElementById('view-deployments');
-            const credBtn = document.getElementById('nav-btn-credentials');
-            const depBtn = document.getElementById('nav-btn-deployments');
-
-            if (viewName === 'credentials') {
-                credSec.classList.remove('hidden');
-                depSec.classList.add('hidden');
-                credBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-2';
-                depBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2';
-                renderCredentialsView();
-            } else {
-                credSec.classList.add('hidden');
-                depSec.classList.remove('hidden');
-                credBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2';
-                depBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-2';
-                renderDeploymentsView();
-            }
-        }
-
-        // --- Backup & Restore ---
-        function exportBackup() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr);
-            dlAnchor.setAttribute("download", `vault-deploy-backup-${new Date().toISOString().slice(0,10)}.json`);
-            document.body.appendChild(dlAnchor);
-            dlAnchor.click();
-            dlAnchor.remove();
-            showToast('Backup JSON exported successfully');
-        }
-
-        function importBackup(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                try {
-                    const parsed = JSON.parse(event.target.result);
-                    if (parsed && parsed.credentialCategories && parsed.deploymentTiles) {
-                        state = parsed;
-                        saveToLocalStorage();
-                        switchView(state.activeView || 'credentials');
-                        showToast('Backup imported successfully');
-                    } else {
-                        showToast('Invalid backup file structure');
+        // Default Starter State (Credentials, Deployment, Alias)
+        function getDefaultState() {
+            return {
+                activeTab: 'credentials',
+                credentials: [
+                    {
+                        id: 'cred-hdr-1',
+                        title: 'Production Cloud & SSH Access',
+                        description: 'Primary compute instances, bastion hosts, and IAM keys',
+                        tiles: [
+                            {
+                                id: 'cred-tile-101',
+                                title: 'Ubuntu App Server (EC2)',
+                                badge: 'PROD',
+                                fields: [
+                                    { label: 'Host / IP', value: '54.210.118.42', isSecret: false },
+                                    { label: 'SSH User', value: 'ubuntu', isSecret: false },
+                                    { label: 'SSH Passphrase', value: 'Prod#SSH$99281!x', isSecret: true }
+                                ],
+                                notes: 'Port 22 restricted to VPN IP. Keyfile: ~/.ssh/prod-app.pem'
+                            },
+                            {
+                                id: 'cred-tile-102',
+                                title: 'AWS IAM Deployment Bot',
+                                badge: 'IAM',
+                                fields: [
+                                    { label: 'AWS_ACCESS_KEY_ID', value: 'AKIAIOSFODNN7EXAMPLE', isSecret: false },
+                                    { label: 'AWS_SECRET_ACCESS_KEY', value: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', isSecret: true },
+                                    { label: 'Default Region', value: 'ap-south-1', isSecret: false }
+                                ],
+                                notes: 'Used for S3 static asset sync and ECR image push.'
+                            }
+                        ]
+                    },
+                    {
+                        id: 'cred-hdr-2',
+                        title: 'Database & Cache Clusters',
+                        description: 'PostgreSQL RDS and Redis connection credentials',
+                        tiles: [
+                            {
+                                id: 'cred-tile-201',
+                                title: 'PostgreSQL 16 Primary',
+                                badge: 'RDS',
+                                fields: [
+                                    { label: 'Endpoint', value: 'prod-db.cluster-xyz.ap-south-1.rds.amazonaws.com', isSecret: false },
+                                    { label: 'Username', value: 'postgres_admin', isSecret: false },
+                                    { label: 'Password', value: 'PgSql_9981_SecureMaster!', isSecret: true }
+                                ],
+                                notes: 'Database Name: app_production | Port: 5432'
+                            }
+                        ]
                     }
-                } catch(err) {
-                    showToast('Failed to parse JSON file');
-                }
+                ],
+                deployments: [
+                    {
+                        id: 'dep-hdr-1',
+                        title: 'Production Web App Release (Gunicorn + Nginx)',
+                        description: 'Zero-downtime deployment steps for Python backend and static assets',
+                        tiles: [
+                            {
+                                id: 'dep-tile-101',
+                                title: 'SSH into Server & Pull Latest Release',
+                                tag: 'Step 1 • Git',
+                                details: 'Navigate to project root and fetch the latest production branch.',
+                                command: 'cd /var/www/app && git fetch --all && git checkout main && git pull origin main',
+                                completed: true
+                            },
+                            {
+                                id: 'dep-tile-102',
+                                title: 'Install Dependencies & Run Migrations',
+                                tag: 'Step 2 • Env',
+                                details: 'Activate virtual environment, sync packages, and apply schema updates.',
+                                command: 'source venv/bin/activate && pip install -r requirements.txt && flask db upgrade',
+                                completed: false
+                            },
+                            {
+                                id: 'dep-tile-103',
+                                title: 'Restart Gunicorn & Reload Nginx',
+                                tag: 'Step 3 • Systemd',
+                                details: 'Gracefully restart application workers and verify Nginx configuration.',
+                                command: 'sudo systemctl restart gunicorn && sudo nginx -t && sudo systemctl reload nginx',
+                                completed: false
+                            }
+                        ]
+                    },
+                    {
+                        id: 'dep-hdr-2',
+                        title: 'Node.js / PM2 Microservice Rollout',
+                        description: 'Build TypeScript bundle and reload PM2 cluster instances',
+                        tiles: [
+                            {
+                                id: 'dep-tile-201',
+                                title: 'Clean Install & Production Build',
+                                tag: 'Build',
+                                details: 'Compile production bundle and prune dev dependencies.',
+                                command: 'npm ci && npm run build',
+                                completed: false
+                            },
+                            {
+                                id: 'dep-tile-202',
+                                title: 'Zero-Downtime PM2 Reload',
+                                tag: 'PM2',
+                                details: 'Reload cluster processes and save PM2 process list.',
+                                command: 'pm2 reload ecosystem.config.js --env production && pm2 save',
+                                completed: false
+                            }
+                        ]
+                    }
+                ],
+                aliases: [
+                    {
+                        id: 'als-hdr-1',
+                        title: 'Nginx & Systemd Service Shortcuts',
+                        description: 'Quick server inspection, config testing, and service restarts',
+                        tiles: [
+                            {
+                                id: 'als-tile-101',
+                                name: 'nginx-reload',
+                                tag: 'Nginx',
+                                command: 'sudo nginx -t && sudo systemctl reload nginx',
+                                details: 'Validates Nginx syntax first and reloads only if the configuration test passes.'
+                            },
+                            {
+                                id: 'als-tile-102',
+                                name: 'app-restart',
+                                tag: 'Systemd',
+                                command: 'sudo systemctl daemon-reload && sudo systemctl restart gunicorn && sudo systemctl status gunicorn --no-pager',
+                                details: 'Reloads systemd units, restarts the Gunicorn service, and prints current status.'
+                            },
+                            {
+                                id: 'als-tile-103',
+                                name: 'errlogs',
+                                tag: 'Logs',
+                                command: 'sudo tail -f -n 100 /var/log/nginx/error.log /var/log/syslog',
+                                details: 'Streams the last 100 lines of Nginx error logs and system logs in real time.'
+                            }
+                        ]
+                    },
+                    {
+                        id: 'als-hdr-2',
+                        title: 'Docker, PM2 & Git Productivity Aliases',
+                        description: 'Daily developer and container management shortcuts',
+                        tiles: [
+                            {
+                                id: 'als-tile-201',
+                                name: 'dps',
+                                tag: 'Docker',
+                                command: 'docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"',
+                                details: 'Displays running Docker containers in a clean, readable table format.'
+                            },
+                            {
+                                id: 'als-tile-202',
+                                name: 'pm2mon',
+                                tag: 'PM2',
+                                command: 'pm2 list && pm2 logs --lines 50',
+                                details: 'Shows PM2 process table followed by the last 50 log lines.'
+                            }
+                        ]
+                    }
+                ]
             };
-            reader.readAsText(file);
-            e.target.value = '';
         }
 
-        // --- Credentials Logic ---
-        function toggleAllMasks() {
-            state.revealedSecrets = !state.revealedSecrets;
-            const icon = document.getElementById('mask-icon');
-            const text = document.getElementById('mask-text');
-            if (state.revealedSecrets) {
-                icon.className = 'fa-solid fa-eye';
-                text.textContent = 'Mask Secrets';
-            } else {
-                icon.className = 'fa-solid fa-eye-slash';
-                text.textContent = 'Reveal Secrets';
+        let state = getDefaultState();
+
+        // --- Initialization & Persistence ---
+        window.onload = function () {
+            loadStateFromStorage();
+            switchTab(state.activeTab || 'credentials');
+        };
+
+        function saveStateToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                flashSaveIndicator();
+                updateTabCounts();
+            } catch (err) {
+                console.error('Failed saving state to localStorage:', err);
             }
-            renderCredentialsView();
         }
 
-        function renderCredentialsView() {
-            const container = document.getElementById('credentials-container');
-            if (state.credentialCategories.length === 0) {
-                container.innerHTML = `<div class="bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center text-slate-400 text-xs">No categories added yet. Click "Add Category Header" above.</div>`;
+        function loadStateFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && Array.isArray(parsed.credentials) && Array.isArray(parsed.deployments) && Array.isArray(parsed.aliases)) {
+                        state = parsed;
+                        updateTabCounts();
+                        return;
+                    }
+                }
+                // Check if legacy v1 storage exists and migrate if present
+                const legacyRaw = localStorage.getItem('credential_deploy_manager_data');
+                if (legacyRaw) {
+                    const legacy = JSON.parse(legacyRaw);
+                    if (legacy && Array.isArray(legacy.credentialCategories)) {
+                        state.credentials = legacy.credentialCategories.map(cat => ({
+                            id: cat.id || ('cred-hdr-' + Date.now()),
+                            title: cat.name || 'Imported Category',
+                            description: 'Migrated from previous version',
+                            tiles: (cat.items || []).map(item => ({
+                                id: item.id || ('cred-tile-' + Math.random()),
+                                title: item.title || 'Credential',
+                                badge: 'SECRET',
+                                fields: [
+                                    ...(item.username && item.username !== '-' ? [{ label: 'Username', value: item.username, isSecret: false }] : []),
+                                    { label: 'Secret / Password', value: item.secret || '', isSecret: true }
+                                ],
+                                notes: item.notes || ''
+                            }))
+                        }));
+                    }
+                    saveStateToStorage();
+                } else {
+                    saveStateToStorage();
+                }
+            } catch (e) {
+                console.error('Error loading localStorage state:', e);
+            }
+            updateTabCounts();
+        }
+
+        function flashSaveIndicator() {
+            const el = document.getElementById('save-indicator');
+            if (!el) return;
+            el.classList.add('ring-2', 'ring-emerald-400/50');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-400/50'), 500);
+        }
+
+        function updateTabCounts() {
+            const credCount = state.credentials.reduce((sum, h) => sum + (h.tiles ? h.tiles.length : 0), 0);
+            const depCount = state.deployments.reduce((sum, h) => sum + (h.tiles ? h.tiles.length : 0), 0);
+            const aliasCount = state.aliases.reduce((sum, h) => sum + (h.tiles ? h.tiles.length : 0), 0);
+
+            document.getElementById('badge-credentials').textContent = credCount;
+            document.getElementById('badge-deployment').textContent = depCount;
+            document.getElementById('badge-alias').textContent = aliasCount;
+        }
+
+        // --- Tab Navigation (Strictly 3 Tabs: credentials, deployment, alias) ---
+        function switchTab(tabName) {
+            if (!['credentials', 'deployment', 'alias'].includes(tabName)) {
+                tabName = 'credentials';
+            }
+            state.activeTab = tabName;
+            saveStateToStorage();
+
+            const tabs = ['credentials', 'deployment', 'alias'];
+            const activeStyles = {
+                credentials: 'bg-indigo-600 text-white shadow-sm',
+                deployment: 'bg-emerald-600 text-white shadow-sm',
+                alias: 'bg-amber-600 text-white shadow-sm'
+            };
+
+            tabs.forEach(t => {
+                const section = document.getElementById(`view-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (t === tabName) {
+                    section.classList.remove('hidden');
+                    btn.className = `flex-1 md:flex-initial px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${activeStyles[t]}`;
+                } else {
+                    section.classList.add('hidden');
+                    btn.className = 'flex-1 md:flex-initial px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-2';
+                }
+            });
+
+            renderActiveTab();
+        }
+
+        function renderActiveTab() {
+            updateTabCounts();
+            if (state.activeTab === 'credentials') renderCredentials();
+            else if (state.activeTab === 'deployment') renderDeployments();
+            else if (state.activeTab === 'alias') renderAliases();
+        }
+
+        // --- Search Filtering ---
+        function handleSearch(val) {
+            searchQuery = (val || '').trim().toLowerCase();
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (searchQuery.length > 0) clearBtn.classList.remove('hidden');
+            else clearBtn.classList.add('hidden');
+            renderActiveTab();
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('global-search');
+            input.value = '';
+            handleSearch('');
+        }
+
+        // --- HTML Escaping Helper ---
+        function esc(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // =========================================================================
+        // 1. CREDENTIALS TAB RENDER & CRUD
+        // =========================================================================
+        function toggleGlobalSecrets() {
+            globalShowSecrets = !globalShowSecrets;
+            const icon = document.getElementById('global-secret-icon');
+            const text = document.getElementById('global-secret-text');
+            if (globalShowSecrets) {
+                icon.className = 'fa-solid fa-eye-slash text-indigo-400';
+                text.textContent = 'Mask All Secrets';
+            } else {
+                icon.className = 'fa-solid fa-eye';
+                text.textContent = 'Reveal All Secrets';
+                revealedFieldMap = {};
+            }
+            renderCredentials();
+        }
+
+        function toggleSingleSecret(key) {
+            revealedFieldMap[key] = !revealedFieldMap[key];
+            renderCredentials();
+        }
+
+        function renderCredentials() {
+            const container = document.getElementById('credentials-list');
+            const filteredHeaders = state.credentials.map(hdr => {
+                if (!searchQuery) return hdr;
+                const hdrMatch = hdr.title.toLowerCase().includes(searchQuery) || (hdr.description || '').toLowerCase().includes(searchQuery);
+                if (hdrMatch) return hdr;
+                const matchingTiles = (hdr.tiles || []).filter(tile => {
+                    const tMatch = tile.title.toLowerCase().includes(searchQuery) ||
+                        (tile.badge || '').toLowerCase().includes(searchQuery) ||
+                        (tile.notes || '').toLowerCase().includes(searchQuery) ||
+                        (tile.fields || []).some(f => f.label.toLowerCase().includes(searchQuery) || f.value.toLowerCase().includes(searchQuery));
+                    return tMatch;
+                });
+                return matchingTiles.length > 0 ? { ...hdr, tiles: matchingTiles } : null;
+            }).filter(Boolean);
+
+            if (filteredHeaders.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                            <i class="fa-solid fa-key text-lg"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-white">${searchQuery ? 'No matching credentials found' : 'No Credential Headers Yet'}</h3>
+                        <p class="text-xs text-slate-400 max-w-md mx-auto">Create a Category Header (like "AWS Production" or "PostgreSQL Databases") and add credential tiles inside it.</p>
+                        ${!searchQuery ? `<button onclick="openHeaderModal('credentials')" class="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-plus mr-1.5"></i>Add Credential Header</button>` : ''}
+                    </div>
+                `;
                 return;
             }
 
-            container.innerHTML = state.credentialCategories.map(cat => {
-                const itemsHtml = cat.items.length === 0 ? 
-                    `<div class="p-6 text-center text-xs text-slate-500">No credentials in this category. Click "Add Item" to add secrets.</div>` :
-                    cat.items.map(item => {
-                        const valDisplay = state.revealedSecrets ? item.secret : '••••••••••••••••••••';
+            container.innerHTML = filteredHeaders.map(hdr => {
+                const tilesHtml = (!hdr.tiles || hdr.tiles.length === 0)
+                    ? `<div class="col-span-full py-8 text-center border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
+                         No credential tiles in this header yet. Click <strong>"Add Credential Tile"</strong> to add details.
+                       </div>`
+                    : hdr.tiles.map(tile => {
+                        const fieldsHtml = (tile.fields || []).map((f, fIdx) => {
+                            const uniqueKey = `${tile.id}_${fIdx}`;
+                            const isRevealed = !f.isSecret || globalShowSecrets || revealedFieldMap[uniqueKey];
+                            const displayVal = isRevealed ? esc(f.value) : '••••••••••••••••';
+                            return `
+                                <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl px-3 py-2 flex items-center justify-between gap-2 group">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">${esc(f.label)}</div>
+                                        <div class="font-mono text-xs text-slate-100 truncate mt-0.5 select-all">${displayVal}</div>
+                                    </div>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        ${f.isSecret ? `
+                                            <button onclick="toggleSingleSecret('${uniqueKey}')" title="${isRevealed ? 'Mask' : 'Reveal'}" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition text-xs">
+                                                <i class="fa-solid ${isRevealed ? 'fa-eye-slash text-indigo-400' : 'fa-eye'}"></i>
+                                            </button>
+                                        ` : ''}
+                                        <button onclick="copyFieldValue('${esc(hdr.id)}', '${esc(tile.id)}', ${fIdx})" title="Copy ${esc(f.label)}" class="p-1.5 text-slate-400 hover:text-indigo-400 rounded-lg hover:bg-slate-800 transition text-xs">
+                                            <i class="fa-solid fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+
                         return `
-                            <tr class="hover:bg-slate-850/50 transition">
-                                <td class="p-4 font-mono font-semibold text-xs text-white">${item.title}</td>
-                                <td class="p-4 text-xs text-slate-300">${item.username || '-'}</td>
-                                <td class="p-4 font-mono text-xs">
-                                    <span class="bg-slate-950 px-2.5 py-1 rounded select-all text-slate-300 border border-slate-800">${valDisplay}</span>
-                                </td>
-                                <td class="p-4 text-xs text-slate-400">${item.notes || '-'}</td>
-                                <td class="p-4 text-right space-x-1">
-                                    <button onclick="copyToClipboard('${item.secret}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300" title="Copy Secret"><i class="fa-solid fa-copy"></i></button>
-                                    <button onclick="openCredentialModal('${cat.id}', '${item.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                                    <button onclick="deleteCredentialItem('${cat.id}', '${item.id}')" class="p-1.5 bg-red-950/60 text-red-400 hover:bg-red-900/60 rounded-lg text-xs" title="Delete"><i class="fa-solid fa-trash"></i></button>
-                                </td>
-                            </tr>
+                            <div class="bg-slate-925 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 flex flex-col justify-between space-y-3.5 shadow-sm transition">
+                                <div class="space-y-3">
+                                    <!-- Tile Header -->
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <h4 class="font-bold text-sm text-white">${esc(tile.title)}</h4>
+                                                ${tile.badge ? `<span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${esc(tile.badge)}</span>` : ''}
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <button onclick="openCredTileModal('${esc(hdr.id)}', '${esc(tile.id)}')" title="Edit Tile" class="p-1.5 text-slate-400 hover:text-white bg-slate-800/70 hover:bg-slate-800 rounded-lg text-xs transition">
+                                                <i class="fa-solid fa-pen"></i>
+                                            </button>
+                                            <button onclick="deleteCredTile('${esc(hdr.id)}', '${esc(tile.id)}')" title="Delete Tile" class="p-1.5 text-slate-400 hover:text-red-400 bg-slate-800/70 hover:bg-red-950/60 rounded-lg text-xs transition">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Key-Value Details -->
+                                    <div class="space-y-2">
+                                        ${fieldsHtml}
+                                    </div>
+
+                                    <!-- Multiline Notes / Details -->
+                                    ${tile.notes ? `
+                                        <div class="bg-slate-950/60 border border-slate-800/70 rounded-xl p-2.5 relative group">
+                                            <div class="flex items-center justify-between mb-1">
+                                                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Details & Notes</span>
+                                                <button onclick="copyCredNotes('${esc(hdr.id)}', '${esc(tile.id)}')" class="text-[10px] text-slate-400 hover:text-indigo-400 flex items-center gap-1">
+                                                    <i class="fa-solid fa-copy"></i> Copy
+                                                </button>
+                                            </div>
+                                            <pre class="text-xs font-mono text-slate-300 whitespace-pre-wrap break-words leading-relaxed">${esc(tile.notes)}</pre>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
                         `;
                     }).join('');
 
                 return `
-                    <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
-                        <div class="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
-                            <div class="flex items-center gap-2.5">
-                                <i class="fa-solid fa-folder-open text-indigo-400"></i>
-                                <h3 class="font-bold text-xs text-white uppercase tracking-wider">${cat.name}</h3>
-                                <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">${cat.items.length} items</span>
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+                        <!-- Category Header Bar -->
+                        <div class="px-5 py-4 bg-slate-850 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                                    <i class="fa-solid fa-folder-open text-xs"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-bold text-sm text-white tracking-wide">${esc(hdr.title)}</h3>
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">${(hdr.tiles || []).length} tiles</span>
+                                    </div>
+                                    ${hdr.description ? `<p class="text-xs text-slate-400 mt-0.5">${esc(hdr.description)}</p>` : ''}
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button onclick="openCredentialModal('${cat.id}')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
-                                    <i class="fa-solid fa-plus text-[10px]"></i> Add Item
+                            <div class="flex items-center gap-2 self-end sm:self-center">
+                                <button onclick="openCredTileModal('${esc(hdr.id)}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                                    <i class="fa-solid fa-plus text-[10px]"></i> Add Credential Tile
                                 </button>
-                                <button onclick="deleteCategory('${cat.id}')" class="p-1.5 text-slate-400 hover:text-red-400 rounded-lg text-xs" title="Delete Category"><i class="fa-solid fa-trash"></i></button>
+                                <button onclick="openHeaderModal('credentials', '${esc(hdr.id)}')" title="Edit Header" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteHeader('credentials', '${esc(hdr.id)}')" title="Delete Header" class="p-1.5 bg-slate-800 hover:bg-red-950/70 text-slate-400 hover:text-red-400 rounded-lg text-xs transition">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
                             </div>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-950/30">
-                                        <th class="p-4">Title / Key</th>
-                                        <th class="p-4">Username / ID</th>
-                                        <th class="p-4">Secret Value</th>
-                                        <th class="p-4">Notes / Env</th>
-                                        <th class="p-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-800 text-sm">
-                                    ${itemsHtml}
-                                </tbody>
-                            </table>
+
+                        <!-- Tiles Grid -->
+                        <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${tilesHtml}
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        // Category Modal
-        function openCategoryModal() { document.getElementById('category-modal').classList.remove('hidden'); }
-        function closeCategoryModal() { document.getElementById('category-modal').classList.add('hidden'); document.getElementById('cat-name').value = ''; }
-        function saveCategory(e) {
-            e.preventDefault();
-            const name = document.getElementById('cat-name').value.trim();
-            if (name) {
-                state.credentialCategories.push({ id: 'cat-' + Date.now(), name, items: [] });
-                closeCategoryModal();
-                saveToLocalStorage();
-                renderCredentialsView();
-                showToast('Category header added');
+        function copyFieldValue(hdrId, tileId, fieldIdx) {
+            const hdr = state.credentials.find(h => h.id === hdrId);
+            const tile = hdr?.tiles?.find(t => t.id === tileId);
+            const field = tile?.fields?.[fieldIdx];
+            if (field) {
+                copyTextToClipboard(field.value, `Copied ${field.label}`);
             }
         }
-        function deleteCategory(catId) {
-            state.credentialCategories = state.credentialCategories.filter(c => c.id !== catId);
-            saveToLocalStorage();
-            renderCredentialsView();
-            showToast('Category removed');
+
+        function copyCredNotes(hdrId, tileId) {
+            const hdr = state.credentials.find(h => h.id === hdrId);
+            const tile = hdr?.tiles?.find(t => t.id === tileId);
+            if (tile && tile.notes) {
+                copyTextToClipboard(tile.notes, 'Copied notes to clipboard');
+            }
         }
 
-        // Credential Item Modal
-        function openCredentialModal(catId, itemId = null) {
-            document.getElementById('credential-modal').classList.remove('hidden');
-            document.getElementById('cred-cat-id').value = catId;
-            if (itemId) {
-                const cat = state.credentialCategories.find(c => c.id === catId);
-                const item = cat?.items.find(i => i.id === itemId);
-                if (item) {
-                    document.getElementById('cred-modal-title').textContent = 'Edit Credential Item';
-                    document.getElementById('cred-edit-id').value = item.id;
-                    document.getElementById('cred-title').value = item.title;
-                    document.getElementById('cred-username').value = item.username || '';
-                    document.getElementById('cred-secret').value = item.secret;
-                    document.getElementById('cred-notes').value = item.notes || '';
+        // Credential Tile Modal Functions
+        function openCredTileModal(hdrId, tileId = null) {
+            document.getElementById('cred-tile-modal').classList.remove('hidden');
+            document.getElementById('cred-header-id').value = hdrId;
+            const fieldsContainer = document.getElementById('cred-fields-container');
+            fieldsContainer.innerHTML = '';
+
+            if (tileId) {
+                const hdr = state.credentials.find(h => h.id === hdrId);
+                const tile = hdr?.tiles?.find(t => t.id === tileId);
+                if (tile) {
+                    document.getElementById('cred-tile-modal-title').textContent = 'Edit Credential Tile';
+                    document.getElementById('cred-tile-id').value = tile.id;
+                    document.getElementById('cred-tile-title').value = tile.title || '';
+                    document.getElementById('cred-tile-badge').value = tile.badge || '';
+                    document.getElementById('cred-tile-notes').value = tile.notes || '';
+                    (tile.fields || []).forEach(f => addCredFieldRow(f.label, f.value, f.isSecret));
                 }
             } else {
-                document.getElementById('cred-modal-title').textContent = 'Add Credential Item';
-                document.getElementById('credential-form').reset();
-                document.getElementById('cred-edit-id').value = '';
-                document.getElementById('cred-cat-id').value = catId;
+                document.getElementById('cred-tile-modal-title').textContent = 'Add Credential Tile';
+                document.getElementById('cred-tile-id').value = '';
+                document.getElementById('cred-tile-title').value = '';
+                document.getElementById('cred-tile-badge').value = '';
+                document.getElementById('cred-tile-notes').value = '';
+                // Default 3 helpful rows: Host/URL, Username, Password/Secret
+                addCredFieldRow('Host / Endpoint', '', false);
+                addCredFieldRow('Username / Key ID', '', false);
+                addCredFieldRow('Password / Secret', '', true);
             }
         }
-        function closeCredentialModal() { document.getElementById('credential-modal').classList.add('hidden'); }
-        function saveCredentialItem(e) {
+
+        function closeCredTileModal() {
+            document.getElementById('cred-tile-modal').classList.add('hidden');
+        }
+
+        function addCredFieldRow(label = '', value = '', isSecret = false) {
+            const container = document.getElementById('cred-fields-container');
+            const row = document.createElement('div');
+            row.className = 'cred-field-row flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800';
+            row.innerHTML = `
+                <input type="text" placeholder="Field Name (e.g. Host, User, Token)" value="${esc(label)}" class="field-label w-1/3 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+                <input type="text" placeholder="Value..." value="${esc(value)}" class="field-value flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500">
+                <label class="flex items-center gap-1 text-[11px] text-slate-400 cursor-pointer shrink-0 px-1" title="Mask as secret password/token">
+                    <input type="checkbox" ${isSecret ? 'checked' : ''} class="field-secret rounded bg-slate-900 border-slate-700 text-indigo-600">
+                    <span>Secret</span>
+                </label>
+                <button type="button" onclick="this.parentElement.remove()" class="p-1.5 text-slate-500 hover:text-red-400 text-xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+            container.appendChild(row);
+        }
+
+        function saveCredTileForm(e) {
             e.preventDefault();
-            const catId = document.getElementById('cred-cat-id').value;
-            const itemId = document.getElementById('cred-edit-id').value;
-            const title = document.getElementById('cred-title').value.trim();
-            const username = document.getElementById('cred-username').value.trim();
-            const secret = document.getElementById('cred-secret').value.trim();
-            const notes = document.getElementById('cred-notes').value.trim();
+            const hdrId = document.getElementById('cred-header-id').value;
+            const tileId = document.getElementById('cred-tile-id').value;
+            const title = document.getElementById('cred-tile-title').value.trim();
+            const badge = document.getElementById('cred-tile-badge').value.trim();
+            const notes = document.getElementById('cred-tile-notes').value.trim();
 
-            const cat = state.credentialCategories.find(c => c.id === catId);
-            if (cat) {
-                if (itemId) {
-                    cat.items = cat.items.map(i => i.id === itemId ? { ...i, title, username, secret, notes } : i);
-                    showToast('Credential updated');
-                } else {
-                    cat.items.push({ id: 'c-' + Date.now(), title, username, secret, notes });
-                    showToast('Credential added');
+            const rows = document.querySelectorAll('#cred-fields-container .cred-field-row');
+            const fields = [];
+            rows.forEach(r => {
+                const label = r.querySelector('.field-label').value.trim();
+                const value = r.querySelector('.field-value').value.trim();
+                const isSecret = r.querySelector('.field-secret').checked;
+                if (label || value) {
+                    fields.push({ label: label || 'Key', value, isSecret });
                 }
-                saveToLocalStorage();
-                renderCredentialsView();
-                closeCredentialModal();
+            });
+
+            const hdr = state.credentials.find(h => h.id === hdrId);
+            if (!hdr) return;
+
+            if (tileId) {
+                hdr.tiles = hdr.tiles.map(t => t.id === tileId ? { ...t, title, badge, fields, notes } : t);
+                showToast('Credential tile updated');
+            } else {
+                hdr.tiles.push({
+                    id: 'cred-tile-' + Date.now(),
+                    title,
+                    badge,
+                    fields,
+                    notes
+                });
+                showToast('Credential tile added');
             }
+
+            closeCredTileModal();
+            saveStateToStorage();
+            renderCredentials();
         }
-        function deleteCredentialItem(catId, itemId) {
-            const cat = state.credentialCategories.find(c => c.id === catId);
-            if (cat) {
-                cat.items = cat.items.filter(i => i.id !== itemId);
-                saveToLocalStorage();
-                renderCredentialsView();
-                showToast('Credential item removed');
+
+        function deleteCredTile(hdrId, tileId) {
+            const hdr = state.credentials.find(h => h.id === hdrId);
+            if (hdr) {
+                hdr.tiles = hdr.tiles.filter(t => t.id !== tileId);
+                saveStateToStorage();
+                renderCredentials();
+                showToast('Credential tile deleted');
             }
         }
 
-        // --- Deployments Logic ---
-        function renderDeploymentsView() {
-            const container = document.getElementById('deployments-container');
-            const tiles = [...state.deploymentTiles].sort((a, b) => (a.order || 1) - (b.order || 1));
+        // =========================================================================
+        // 2. DEPLOYMENT TAB RENDER & CRUD
+        // =========================================================================
+        function renderDeployments() {
+            const container = document.getElementById('deployment-list');
+            const filteredHeaders = state.deployments.map(hdr => {
+                if (!searchQuery) return hdr;
+                const hdrMatch = hdr.title.toLowerCase().includes(searchQuery) || (hdr.description || '').toLowerCase().includes(searchQuery);
+                if (hdrMatch) return hdr;
+                const matchingTiles = (hdr.tiles || []).filter(tile =>
+                    tile.title.toLowerCase().includes(searchQuery) ||
+                    (tile.tag || '').toLowerCase().includes(searchQuery) ||
+                    (tile.details || '').toLowerCase().includes(searchQuery) ||
+                    (tile.command || '').toLowerCase().includes(searchQuery)
+                );
+                return matchingTiles.length > 0 ? { ...hdr, tiles: matchingTiles } : null;
+            }).filter(Boolean);
 
-            if (tiles.length === 0) {
-                container.innerHTML = `<div class="col-span-full bg-slate-900 p-12 rounded-2xl border border-slate-800 text-center text-slate-400 text-xs">No deployment step tiles created yet. Click "Add Deployment Tile".</div>`;
+            if (filteredHeaders.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                            <i class="fa-solid fa-rocket text-lg"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-white">${searchQuery ? 'No matching deployment steps found' : 'No Deployment Headers Yet'}</h3>
+                        <p class="text-xs text-slate-400 max-w-md mx-auto">Create a Deployment Header for your project or server and add multiple sequential Step Tiles.</p>
+                        ${!searchQuery ? `<button onclick="openHeaderModal('deployment')" class="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-plus mr-1.5"></i>Add Deployment Header</button>` : ''}
+                    </div>
+                `;
                 return;
             }
 
-            const statusColors = {
-                'Completed': 'bg-emerald-950 text-emerald-400 border border-emerald-800/50',
-                'In Progress': 'bg-indigo-950 text-indigo-400 border border-indigo-800/50',
-                'Pending': 'bg-amber-950 text-amber-400 border border-amber-800/50',
-                'Failed': 'bg-red-950 text-red-400 border border-red-800/50'
-            };
+            container.innerHTML = filteredHeaders.map(hdr => {
+                const totalSteps = (hdr.tiles || []).length;
+                const doneSteps = (hdr.tiles || []).filter(t => t.completed).length;
 
-            const envColors = {
-                'Production': 'bg-red-950/60 text-red-400 border border-red-900/50',
-                'Staging': 'bg-amber-950/60 text-amber-400 border border-amber-900/50',
-                'Development': 'bg-blue-950/60 text-blue-400 border border-blue-900/50',
-                'CI/CD Pipeline': 'bg-purple-950/60 text-purple-400 border border-purple-900/50'
-            };
+                const tilesHtml = totalSteps === 0
+                    ? `<div class="col-span-full py-8 text-center border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
+                         No deployment step tiles added yet. Click <strong>"Add Step Tile"</strong> to create your runbook.
+                       </div>`
+                    : hdr.tiles.map((tile, idx) => `
+                        <div class="bg-slate-925 border ${tile.completed ? 'border-emerald-700/60 bg-emerald-950/10' : 'border-slate-800 hover:border-slate-700'} rounded-2xl p-4 flex flex-col justify-between space-y-3 shadow-sm transition">
+                            <div class="space-y-2.5">
+                                <!-- Top Step Bar -->
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-6 h-6 rounded-lg ${tile.completed ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'} font-mono text-xs font-bold flex items-center justify-center">
+                                            ${idx + 1}
+                                        </span>
+                                        ${tile.tag ? `<span class="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${esc(tile.tag)}</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button onclick="moveDeployTile('${esc(hdr.id)}', ${idx}, -1)" title="Move Earlier" class="p-1 text-slate-500 hover:text-slate-200 text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+                                        <button onclick="moveDeployTile('${esc(hdr.id)}', ${idx}, 1)" title="Move Later" class="p-1 text-slate-500 hover:text-slate-200 text-xs"><i class="fa-solid fa-arrow-right"></i></button>
+                                        <button onclick="openDeployTileModal('${esc(hdr.id)}', '${esc(tile.id)}')" title="Edit Step" class="p-1.5 text-slate-400 hover:text-white bg-slate-800/70 hover:bg-slate-800 rounded-lg text-xs"><i class="fa-solid fa-pen"></i></button>
+                                        <button onclick="deleteDeployTile('${esc(hdr.id)}', '${esc(tile.id)}')" title="Delete Step" class="p-1.5 text-slate-400 hover:text-red-400 bg-slate-800/70 hover:bg-red-950/60 rounded-lg text-xs"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
 
-            container.innerHTML = tiles.map(tile => {
-                const checklistHtml = (tile.checklist || []).map((chk, idx) => `
-                    <label class="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer py-1">
-                        <input type="checkbox" ${chk.completed ? 'checked' : ''} onchange="toggleChecklistItem('${tile.id}', ${idx}, this.checked)" class="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 rounded focus:ring-indigo-500 cursor-pointer">
-                        <span class="${chk.completed ? 'line-through text-slate-500' : ''}">${chk.text}</span>
-                    </label>
-                `).join('');
+                                <!-- Step Header & Details -->
+                                <div>
+                                    <h4 class="font-bold text-sm ${tile.completed ? 'line-through text-slate-400' : 'text-white'}">${esc(tile.title)}</h4>
+                                    ${tile.details ? `<p class="text-xs text-slate-400 mt-1 leading-relaxed">${esc(tile.details)}</p>` : ''}
+                                </div>
+
+                                <!-- Command Block -->
+                                ${tile.command ? `
+                                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 relative group">
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500">Command</span>
+                                            <button onclick="copyDeployCommand('${esc(hdr.id)}', '${esc(tile.id)}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white text-[10px] font-semibold flex items-center gap-1 transition">
+                                                <i class="fa-solid fa-copy"></i> Copy
+                                            </button>
+                                        </div>
+                                        <pre class="font-mono text-xs text-emerald-300 whitespace-pre-wrap break-all select-all leading-relaxed">${esc(tile.command)}</pre>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <!-- Footer Completion Toggle -->
+                            <div class="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                                <label class="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                                    <input type="checkbox" ${tile.completed ? 'checked' : ''} onchange="toggleDeployStep('${esc(hdr.id)}', '${esc(tile.id)}', this.checked)" class="w-4 h-4 rounded bg-slate-950 border-slate-700 text-emerald-600 focus:ring-0 cursor-pointer">
+                                    <span class="${tile.completed ? 'text-emerald-400 font-semibold' : 'text-slate-400'}">${tile.completed ? 'Step Completed' : 'Mark Complete'}</span>
+                                </label>
+                                ${tile.command ? `
+                                    <button onclick="copyDeployCommand('${esc(hdr.id)}', '${esc(tile.id)}')" class="text-xs text-slate-400 hover:text-emerald-400 font-medium flex items-center gap-1">
+                                        <i class="fa-solid fa-terminal text-[10px]"></i> Copy Cmd
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('');
 
                 return `
-                    <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm p-5 flex flex-col justify-between transition-all hover:border-slate-700">
-                        <div>
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center">${tile.order || 1}</span>
-                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[tile.status] || ''}">${tile.status}</span>
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+                        <!-- Deployment Header Bar -->
+                        <div class="px-5 py-4 bg-slate-850 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                                    <i class="fa-solid fa-list-check text-xs"></i>
                                 </div>
-                                <div class="flex items-center gap-1">
-                                    <button onclick="openTileModal('${tile.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                                    <button onclick="deleteTile('${tile.id}')" class="p-1.5 bg-red-950/60 text-red-400 hover:bg-red-900/60 rounded-lg text-xs" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                <div>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <h3 class="font-bold text-sm text-white tracking-wide">${esc(hdr.title)}</h3>
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400">${doneSteps}/${totalSteps} completed</span>
+                                    </div>
+                                    ${hdr.description ? `<p class="text-xs text-slate-400 mt-0.5">${esc(hdr.description)}</p>` : ''}
                                 </div>
                             </div>
-                            <div class="flex items-center justify-between mb-1.5">
-                                <h3 class="font-bold text-sm text-white">${tile.title}</h3>
-                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${envColors[tile.env] || ''}">${tile.env}</span>
+                            <div class="flex items-center gap-2 self-end sm:self-center flex-wrap">
+                                ${totalSteps > 0 ? `
+                                    <button onclick="resetDeployHeaderSteps('${esc(hdr.id)}')" title="Reset all step checkboxes" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium flex items-center gap-1.5 transition">
+                                        <i class="fa-solid fa-rotate-right text-[10px]"></i> Reset Steps
+                                    </button>
+                                ` : ''}
+                                <button onclick="openDeployTileModal('${esc(hdr.id)}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                                    <i class="fa-solid fa-plus text-[10px]"></i> Add Step Tile
+                                </button>
+                                <button onclick="openHeaderModal('deployment', '${esc(hdr.id)}')" title="Edit Header" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteHeader('deployment', '${esc(hdr.id)}')" title="Delete Header" class="p-1.5 bg-slate-800 hover:bg-red-950/70 text-slate-400 hover:text-red-400 rounded-lg text-xs transition">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
                             </div>
-                            <p class="text-xs text-slate-400 mb-4 font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">${tile.desc || 'No commands provided.'}</p>
-                            
-                            ${tile.checklist && tile.checklist.length > 0 ? `
-                                <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800 space-y-1 mb-4">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Checklist</div>
-                                    ${checklistHtml}
-                                </div>
-                            ` : ''}
                         </div>
-                        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-                            <span class="text-[11px] text-slate-500 font-mono">ID: ${tile.id}</span>
-                            <button onclick="executeTile('${tile.id}')" class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-indigo-500/30">
-                                <i class="fa-solid fa-play text-[9px]"></i> Run Step
-                            </button>
+
+                        <!-- Step Tiles Grid -->
+                        <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${tilesHtml}
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        // Deployment Modal
-        function openTileModal(tileId = null) {
-            document.getElementById('tile-modal').classList.remove('hidden');
+        function copyDeployCommand(hdrId, tileId) {
+            const hdr = state.deployments.find(h => h.id === hdrId);
+            const tile = hdr?.tiles?.find(t => t.id === tileId);
+            if (tile && tile.command) {
+                copyTextToClipboard(tile.command, `Copied command: ${tile.title}`);
+            }
+        }
+
+        function toggleDeployStep(hdrId, tileId, completed) {
+            const hdr = state.deployments.find(h => h.id === hdrId);
+            const tile = hdr?.tiles?.find(t => t.id === tileId);
+            if (tile) {
+                tile.completed = completed;
+                saveStateToStorage();
+                renderDeployments();
+            }
+        }
+
+        function resetDeployHeaderSteps(hdrId) {
+            const hdr = state.deployments.find(h => h.id === hdrId);
+            if (hdr && hdr.tiles) {
+                hdr.tiles.forEach(t => t.completed = false);
+                saveStateToStorage();
+                renderDeployments();
+                showToast('Reset all steps in runbook');
+            }
+        }
+
+        function moveDeployTile(hdrId, idx, dir) {
+            const hdr = state.deployments.find(h => h.id === hdrId);
+            if (!hdr || !hdr.tiles) return;
+            const targetIdx = idx + dir;
+            if (targetIdx < 0 || targetIdx >= hdr.tiles.length) return;
+            const temp = hdr.tiles[idx];
+            hdr.tiles[idx] = hdr.tiles[targetIdx];
+            hdr.tiles[targetIdx] = temp;
+            saveStateToStorage();
+            renderDeployments();
+        }
+
+        function openDeployTileModal(hdrId, tileId = null) {
+            document.getElementById('deploy-tile-modal').classList.remove('hidden');
+            document.getElementById('deploy-header-id').value = hdrId;
             if (tileId) {
-                const tile = state.deploymentTiles.find(t => t.id === tileId);
+                const hdr = state.deployments.find(h => h.id === hdrId);
+                const tile = hdr?.tiles?.find(t => t.id === tileId);
                 if (tile) {
-                    document.getElementById('tile-modal-title').textContent = 'Edit Deployment Step Tile';
-                    document.getElementById('tile-edit-id').value = tile.id;
-                    document.getElementById('tile-title').value = tile.title;
-                    document.getElementById('tile-env').value = tile.env;
-                    document.getElementById('tile-status').value = tile.status;
-                    document.getElementById('tile-order').value = tile.order || 1;
-                    document.getElementById('tile-desc').value = tile.desc || '';
-                    document.getElementById('tile-checklist').value = (tile.checklist || []).map(c => c.text).join('\n');
+                    document.getElementById('deploy-tile-modal-title').textContent = 'Edit Deployment Step Tile';
+                    document.getElementById('deploy-tile-id').value = tile.id;
+                    document.getElementById('deploy-tile-title').value = tile.title || '';
+                    document.getElementById('deploy-tile-tag').value = tile.tag || '';
+                    document.getElementById('deploy-tile-details').value = tile.details || '';
+                    document.getElementById('deploy-tile-command').value = tile.command || '';
                 }
             } else {
-                document.getElementById('tile-modal-title').textContent = 'Add Deployment Step Tile';
-                document.getElementById('tile-form').reset();
-                document.getElementById('tile-edit-id').value = '';
-                document.getElementById('tile-order').value = state.deploymentTiles.length + 1;
+                document.getElementById('deploy-tile-modal-title').textContent = 'Add Deployment Step Tile';
+                document.getElementById('deploy-tile-id').value = '';
+                document.getElementById('deploy-tile-title').value = '';
+                document.getElementById('deploy-tile-tag').value = '';
+                document.getElementById('deploy-tile-details').value = '';
+                document.getElementById('deploy-tile-command').value = '';
             }
         }
-        function closeTileModal() { document.getElementById('tile-modal').classList.add('hidden'); }
-        function saveDeploymentTile(e) {
+
+        function closeDeployTileModal() {
+            document.getElementById('deploy-tile-modal').classList.add('hidden');
+        }
+
+        function saveDeployTileForm(e) {
             e.preventDefault();
-            const id = document.getElementById('tile-edit-id').value;
-            const title = document.getElementById('tile-title').value.trim();
-            const env = document.getElementById('tile-env').value;
-            const status = document.getElementById('tile-status').value;
-            const order = parseInt(document.getElementById('tile-order').value) || 1;
-            const desc = document.getElementById('tile-desc').value.trim();
-            const rawChecklist = document.getElementById('tile-checklist').value.trim();
+            const hdrId = document.getElementById('deploy-header-id').value;
+            const tileId = document.getElementById('deploy-tile-id').value;
+            const title = document.getElementById('deploy-tile-title').value.trim();
+            const tag = document.getElementById('deploy-tile-tag').value.trim();
+            const details = document.getElementById('deploy-tile-details').value.trim();
+            const command = document.getElementById('deploy-tile-command').value.trim();
 
-            const lines = rawChecklist ? rawChecklist.split('\n').map(l => l.trim()).filter(Boolean) : [];
+            const hdr = state.deployments.find(h => h.id === hdrId);
+            if (!hdr) return;
 
-            if (id) {
-                const existing = state.deploymentTiles.find(t => t.id === id);
-                const checklist = lines.map(line => {
-                    const found = existing?.checklist?.find(c => c.text === line);
-                    return { text: line, completed: found ? found.completed : false };
-                });
-                state.deploymentTiles = state.deploymentTiles.map(t => t.id === id ? { ...t, title, env, status, order, desc, checklist } : t);
-                showToast('Deployment tile updated');
+            if (tileId) {
+                hdr.tiles = hdr.tiles.map(t => t.id === tileId ? { ...t, title, tag, details, command } : t);
+                showToast('Deployment step updated');
             } else {
-                const checklist = lines.map(line => ({ text: line, completed: false }));
-                state.deploymentTiles.push({ id: 't-' + Date.now(), title, env, status, order, desc, checklist });
-                showToast('Deployment tile added');
+                hdr.tiles.push({
+                    id: 'dep-tile-' + Date.now(),
+                    title,
+                    tag,
+                    details,
+                    command,
+                    completed: false
+                });
+                showToast('Deployment step added');
             }
-            closeTileModal();
-            saveToLocalStorage();
-            renderDeploymentsView();
-        }
-        function deleteTile(tileId) {
-            state.deploymentTiles = state.deploymentTiles.filter(t => t.id !== tileId);
-            saveToLocalStorage();
-            renderDeploymentsView();
-            showToast('Deployment tile removed');
-        }
-        function toggleChecklistItem(tileId, index, isChecked) {
-            const tile = state.deploymentTiles.find(t => t.id === tileId);
-            if (tile && tile.checklist && tile.checklist[index]) {
-                tile.checklist[index].completed = isChecked;
-                saveToLocalStorage();
-                renderDeploymentsView();
-            }
-        }
-        function executeTile(tileId) {
-            const tile = state.deploymentTiles.find(t => t.id === tileId);
-            if (tile) {
-                tile.status = 'Completed';
-                if (tile.checklist) tile.checklist.forEach(c => c.completed = true);
-                saveToLocalStorage();
-                renderDeploymentsView();
-                showToast(`Executed: ${tile.title}`);
-            }
-        }
-        function runAllDeployments() {
-            state.deploymentTiles.forEach(t => {
-                t.status = 'Completed';
-                if (t.checklist) t.checklist.forEach(c => c.completed = true);
-            });
-            saveToLocalStorage();
-            renderDeploymentsView();
-            showToast('All deployment steps completed');
+
+            closeDeployTileModal();
+            saveStateToStorage();
+            renderDeployments();
         }
 
-        // --- Helpers ---
-        function copyToClipboard(text) {
+        function deleteDeployTile(hdrId, tileId) {
+            const hdr = state.deployments.find(h => h.id === hdrId);
+            if (hdr) {
+                hdr.tiles = hdr.tiles.filter(t => t.id !== tileId);
+                saveStateToStorage();
+                renderDeployments();
+                showToast('Deployment step deleted');
+            }
+        }
+
+        // =========================================================================
+        // 3. ALIAS TAB RENDER & CRUD
+        // =========================================================================
+        function formatShellAliasLine(name, command) {
+            const safeCmd = String(command || '').replace(/'/g, `'\\''`);
+            return `alias ${name}='${safeCmd}'`;
+        }
+
+        function renderAliases() {
+            const container = document.getElementById('alias-list');
+            const filteredHeaders = state.aliases.map(hdr => {
+                if (!searchQuery) return hdr;
+                const hdrMatch = hdr.title.toLowerCase().includes(searchQuery) || (hdr.description || '').toLowerCase().includes(searchQuery);
+                if (hdrMatch) return hdr;
+                const matchingTiles = (hdr.tiles || []).filter(tile =>
+                    tile.name.toLowerCase().includes(searchQuery) ||
+                    (tile.tag || '').toLowerCase().includes(searchQuery) ||
+                    (tile.command || '').toLowerCase().includes(searchQuery) ||
+                    (tile.details || '').toLowerCase().includes(searchQuery)
+                );
+                return matchingTiles.length > 0 ? { ...hdr, tiles: matchingTiles } : null;
+            }).filter(Boolean);
+
+            if (filteredHeaders.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
+                        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                            <i class="fa-solid fa-terminal text-lg"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-white">${searchQuery ? 'No matching aliases found' : 'No Alias Headers Yet'}</h3>
+                        <p class="text-xs text-slate-400 max-w-md mx-auto">Create an Alias Header (like "Nginx Shortcuts" or "Git & Docker Aliases") and add multiple command shortcut tiles.</p>
+                        ${!searchQuery ? `<button onclick="openHeaderModal('alias')" class="mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-plus mr-1.5"></i>Add Alias Header</button>` : ''}
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredHeaders.map(hdr => {
+                const tilesHtml = (!hdr.tiles || hdr.tiles.length === 0)
+                    ? `<div class="col-span-full py-8 text-center border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
+                         No alias tiles in this category yet. Click <strong>"Add Alias Tile"</strong> to create a shortcut.
+                       </div>`
+                    : hdr.tiles.map(tile => {
+                        const shellDef = formatShellAliasLine(tile.name, tile.command);
+                        return `
+                            <div class="bg-slate-925 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 flex flex-col justify-between space-y-3.5 shadow-sm transition">
+                                <div class="space-y-2.5">
+                                    <!-- Tile Top Row -->
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 font-mono text-xs font-bold text-amber-300 select-all">
+                                                ${esc(tile.name)}
+                                            </span>
+                                            ${tile.tag ? `<span class="px-2 py-0.5 text-[10px] font-semibold uppercase rounded-md bg-slate-800 text-slate-300">${esc(tile.tag)}</span>` : ''}
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <button onclick="openAliasTileModal('${esc(hdr.id)}', '${esc(tile.id)}')" title="Edit Alias" class="p-1.5 text-slate-400 hover:text-white bg-slate-800/70 hover:bg-slate-800 rounded-lg text-xs transition">
+                                                <i class="fa-solid fa-pen"></i>
+                                            </button>
+                                            <button onclick="deleteAliasTile('${esc(hdr.id)}', '${esc(tile.id)}')" title="Delete Alias" class="p-1.5 text-slate-400 hover:text-red-400 bg-slate-800/70 hover:bg-red-950/60 rounded-lg text-xs transition">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Details / Description -->
+                                    ${tile.details ? `<p class="text-xs text-slate-400 leading-relaxed">${esc(tile.details)}</p>` : ''}
+
+                                    <!-- Target Command Box -->
+                                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500">Shell Definition</span>
+                                            <span class="text-[10px] font-mono text-amber-400/80">bash / zsh</span>
+                                        </div>
+                                        <pre class="font-mono text-xs text-slate-200 whitespace-pre-wrap break-all select-all leading-relaxed">${esc(shellDef)}</pre>
+                                    </div>
+                                </div>
+
+                                <!-- Copy Actions Bar -->
+                                <div class="pt-2.5 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                                    <button onclick="copyAliasRawCommand('${esc(hdr.id)}', '${esc(tile.id)}')" class="flex-1 py-1.5 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
+                                        <i class="fa-solid fa-terminal text-amber-400 text-[10px]"></i>
+                                        <span>Copy Command</span>
+                                    </button>
+                                    <button onclick="copyAliasDefinition('${esc(hdr.id)}', '${esc(tile.id)}')" class="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                                        <i class="fa-solid fa-copy text-[10px]"></i>
+                                        <span>Copy alias='...'</span>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+                        <!-- Alias Category Header Bar -->
+                        <div class="px-5 py-4 bg-slate-850 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                                    <i class="fa-solid fa-terminal text-xs"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <h3 class="font-bold text-sm text-white tracking-wide">${esc(hdr.title)}</h3>
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-amber-400">${(hdr.tiles || []).length} aliases</span>
+                                    </div>
+                                    ${hdr.description ? `<p class="text-xs text-slate-400 mt-0.5">${esc(hdr.description)}</p>` : ''}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 self-end sm:self-center flex-wrap">
+                                ${(hdr.tiles || []).length > 0 ? `
+                                    <button onclick="copyHeaderAliasesSnippet('${esc(hdr.id)}')" title="Copy all aliases in this section for .bashrc / .zshrc" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                                        <i class="fa-solid fa-file-code text-[11px]"></i> Copy Group Snippet
+                                    </button>
+                                ` : ''}
+                                <button onclick="openAliasTileModal('${esc(hdr.id)}')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                                    <i class="fa-solid fa-plus text-[10px]"></i> Add Alias Tile
+                                </button>
+                                <button onclick="openHeaderModal('alias', '${esc(hdr.id)}')" title="Edit Header" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteHeader('alias', '${esc(hdr.id)}')" title="Delete Header" class="p-1.5 bg-slate-800 hover:bg-red-950/70 text-slate-400 hover:text-red-400 rounded-lg text-xs transition">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Alias Tiles Grid -->
+                        <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${tilesHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function copyAliasRawCommand(hdrId, tileId) {
+            const hdr = state.aliases.find(h => h.id === hdrId);
+            const tile = hdr?.tiles?.find(t => t.id === tileId);
+            if (tile) {
+                copyTextToClipboard(tile.command, `Copied raw command for "${tile.name}"`);
+            }
+        }
+
+        function copyAliasDefinition(hdrId, tileId) {
+            const hdr = state.aliases.find(h => h.id === hdrId);
+            const tile = hdr?.tiles?.find(t => t.id === tileId);
+            if (tile) {
+                const line = formatShellAliasLine(tile.name, tile.command);
+                copyTextToClipboard(line, `Copied alias ${tile.name}='...'`);
+            }
+        }
+
+        function copyHeaderAliasesSnippet(hdrId) {
+            const hdr = state.aliases.find(h => h.id === hdrId);
+            if (!hdr || !hdr.tiles || hdr.tiles.length === 0) return;
+            const lines = [
+                `# === ${hdr.title} ===`,
+                ...hdr.tiles.map(t => formatShellAliasLine(t.name, t.command))
+            ].join('\n');
+            copyTextToClipboard(lines, `Copied ${hdr.tiles.length} aliases from "${hdr.title}"`);
+        }
+
+        function copyAllAliasesGlobal() {
+            const blocks = state.aliases
+                .filter(h => h.tiles && h.tiles.length > 0)
+                .map(h => `# === ${h.title} ===\n` + h.tiles.map(t => formatShellAliasLine(t.name, t.command)).join('\n'));
+            if (blocks.length === 0) {
+                showToast('No aliases available to export');
+                return;
+            }
+            copyTextToClipboard(blocks.join('\n\n'), 'Copied entire .bashrc / .zshrc alias block!');
+        }
+
+        function openAliasTileModal(hdrId, tileId = null) {
+            document.getElementById('alias-tile-modal').classList.remove('hidden');
+            document.getElementById('alias-header-id').value = hdrId;
+            if (tileId) {
+                const hdr = state.aliases.find(h => h.id === hdrId);
+                const tile = hdr?.tiles?.find(t => t.id === tileId);
+                if (tile) {
+                    document.getElementById('alias-tile-modal-title').textContent = 'Edit Alias Tile';
+                    document.getElementById('alias-tile-id').value = tile.id;
+                    document.getElementById('alias-tile-name').value = tile.name || '';
+                    document.getElementById('alias-tile-tag').value = tile.tag || '';
+                    document.getElementById('alias-tile-command').value = tile.command || '';
+                    document.getElementById('alias-tile-details').value = tile.details || '';
+                }
+            } else {
+                document.getElementById('alias-tile-modal-title').textContent = 'Add Alias Tile';
+                document.getElementById('alias-tile-id').value = '';
+                document.getElementById('alias-tile-name').value = '';
+                document.getElementById('alias-tile-tag').value = '';
+                document.getElementById('alias-tile-command').value = '';
+                document.getElementById('alias-tile-details').value = '';
+            }
+        }
+
+        function closeAliasTileModal() {
+            document.getElementById('alias-tile-modal').classList.add('hidden');
+        }
+
+        function saveAliasTileForm(e) {
+            e.preventDefault();
+            const hdrId = document.getElementById('alias-header-id').value;
+            const tileId = document.getElementById('alias-tile-id').value;
+            const name = document.getElementById('alias-tile-name').value.trim().replace(/\s+/g, '-');
+            const tag = document.getElementById('alias-tile-tag').value.trim();
+            const command = document.getElementById('alias-tile-command').value.trim();
+            const details = document.getElementById('alias-tile-details').value.trim();
+
+            const hdr = state.aliases.find(h => h.id === hdrId);
+            if (!hdr) return;
+
+            if (tileId) {
+                hdr.tiles = hdr.tiles.map(t => t.id === tileId ? { ...t, name, tag, command, details } : t);
+                showToast('Alias tile updated');
+            } else {
+                hdr.tiles.push({
+                    id: 'als-tile-' + Date.now(),
+                    name,
+                    tag,
+                    command,
+                    details
+                });
+                showToast('Alias tile added');
+            }
+
+            closeAliasTileModal();
+            saveStateToStorage();
+            renderAliases();
+        }
+
+        function deleteAliasTile(hdrId, tileId) {
+            const hdr = state.aliases.find(h => h.id === hdrId);
+            if (hdr) {
+                hdr.tiles = hdr.tiles.filter(t => t.id !== tileId);
+                saveStateToStorage();
+                renderAliases();
+                showToast('Alias tile removed');
+            }
+        }
+
+        // =========================================================================
+        // 4. UNIVERSAL SECTION HEADER MODAL (Credentials / Deployment / Alias)
+        // =========================================================================
+        function getCollectionByType(type) {
+            if (type === 'credentials') return state.credentials;
+            if (type === 'deployment') return state.deployments;
+            if (type === 'alias') return state.aliases;
+            return [];
+        }
+
+        function openHeaderModal(type, hdrId = null) {
+            document.getElementById('header-modal').classList.remove('hidden');
+            document.getElementById('header-modal-type').value = type;
+            const list = getCollectionByType(type);
+            const labelMap = {
+                credentials: 'Credential Category Header',
+                deployment: 'Deployment Project Header',
+                alias: 'Alias Category Header'
+            };
+
+            if (hdrId) {
+                const found = list.find(h => h.id === hdrId);
+                if (found) {
+                    document.getElementById('header-modal-title').textContent = `Edit ${labelMap[type]}`;
+                    document.getElementById('header-modal-id').value = found.id;
+                    document.getElementById('header-title-input').value = found.title || '';
+                    document.getElementById('header-desc-input').value = found.description || '';
+                }
+            } else {
+                document.getElementById('header-modal-title').textContent = `Add ${labelMap[type]}`;
+                document.getElementById('header-modal-id').value = '';
+                document.getElementById('header-title-input').value = '';
+                document.getElementById('header-desc-input').value = '';
+            }
+        }
+
+        function closeHeaderModal() {
+            document.getElementById('header-modal').classList.add('hidden');
+        }
+
+        function saveHeaderForm(e) {
+            e.preventDefault();
+            const type = document.getElementById('header-modal-type').value;
+            const hdrId = document.getElementById('header-modal-id').value;
+            const title = document.getElementById('header-title-input').value.trim();
+            const description = document.getElementById('header-desc-input').value.trim();
+
+            if (!title) return;
+            const list = getCollectionByType(type);
+
+            if (hdrId) {
+                const idx = list.findIndex(h => h.id === hdrId);
+                if (idx !== -1) {
+                    list[idx].title = title;
+                    list[idx].description = description;
+                    showToast('Header updated');
+                }
+            } else {
+                list.push({
+                    id: `${type}-hdr-${Date.now()}`,
+                    title,
+                    description,
+                    tiles: []
+                });
+                showToast('New header created');
+            }
+
+            closeHeaderModal();
+            saveStateToStorage();
+            renderActiveTab();
+        }
+
+        function deleteHeader(type, hdrId) {
+            if (type === 'credentials') {
+                state.credentials = state.credentials.filter(h => h.id !== hdrId);
+            } else if (type === 'deployment') {
+                state.deployments = state.deployments.filter(h => h.id !== hdrId);
+            } else if (type === 'alias') {
+                state.aliases = state.aliases.filter(h => h.id !== hdrId);
+            }
+            saveStateToStorage();
+            renderActiveTab();
+            showToast('Section header removed');
+        }
+
+        // =========================================================================
+        // 5. BACKUP EXPORT / IMPORT & RESET MODAL
+        // =========================================================================
+        function exportDataJSON() {
+            const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state, null, 2));
+            const a = document.createElement('a');
+            a.setAttribute('href', dataStr);
+            a.setAttribute('download', `devops-hub-backup-${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast('Backup JSON downloaded');
+        }
+
+        function importDataJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed && Array.isArray(parsed.credentials) && Array.isArray(parsed.deployments)) {
+                        state = {
+                            activeTab: parsed.activeTab || 'credentials',
+                            credentials: parsed.credentials || [],
+                            deployments: parsed.deployments || [],
+                            aliases: Array.isArray(parsed.aliases) ? parsed.aliases : []
+                        };
+                        saveStateToStorage();
+                        switchTab(state.activeTab);
+                        showToast('Workspace data imported successfully');
+                    } else {
+                        showToast('Invalid JSON backup format');
+                    }
+                } catch (err) {
+                    showToast('Failed to parse JSON file');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function openResetModal() {
+            document.getElementById('reset-modal').classList.remove('hidden');
+        }
+
+        function closeResetModal() {
+            document.getElementById('reset-modal').classList.add('hidden');
+        }
+
+        function restoreStarterData() {
+            state = getDefaultState();
+            saveStateToStorage();
+            closeResetModal();
+            switchTab('credentials');
+            showToast('Default demo data restored');
+        }
+
+        function clearAllWorkspaceData() {
+            state = {
+                activeTab: state.activeTab || 'credentials',
+                credentials: [],
+                deployments: [],
+                aliases: []
+            };
+            saveStateToStorage();
+            closeResetModal();
+            renderActiveTab();
+            showToast('Workspace cleared');
+        }
+
+        // =========================================================================
+        // 6. CLIPBOARD & TOAST UTILITIES
+        // =========================================================================
+        function copyTextToClipboard(text, message = 'Copied to clipboard') {
             const textarea = document.createElement('textarea');
             textarea.value = text;
             textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
             document.body.appendChild(textarea);
             textarea.focus();
             textarea.select();
             try {
                 document.execCommand('copy');
-                showToast('Copied secret to clipboard');
+                showToast(message);
             } catch (err) {
-                showToast('Failed to copy');
+                showToast('Unable to copy');
             }
             document.body.removeChild(textarea);
         }
 
+        let toastTimeout = null;
         function showToast(message) {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').textContent = message;
             toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
                 toast.classList.add('translate-y-20', 'opacity-0');
-            }, 3000);
+            }, 2600);
         }
     </script>
 </body>
